@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DiveForm · 형태 분석 (관절 엔진 불필요)</title>
+<style>
+:root{--paper:#FBFAF6;--ink:#1D2B2F;--teal:#16323C;--acc:#B0512B;--ok:#2E6B4F;--warn:#9A6A16;--bad:#9E3B2E;--line:#DCD8CE;--pane:#F2F0E9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.55 "Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--line);background:#fff}
+h1{font-size:16px;margin:0;letter-spacing:-.2px}
+.tag{font-size:11px;padding:3px 8px;border-radius:99px;background:#EAF1EC;color:var(--ok);border:1px solid #CDDFD3;font-weight:600}
+.sp{flex:1}
+button{font:inherit;font-size:13px;padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--ink);cursor:pointer}
+button:hover{border-color:#B9B3A4}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+button.pri:hover{filter:brightness(.94)}
+button:disabled{opacity:.45;cursor:default}
+main{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:0;height:calc(100vh - 58px - 62px)}
+#wrap{position:relative;padding:16px;display:flex;align-items:center;justify-content:center;background:#111}
+canvas{max-width:100%;max-height:100%;border-radius:6px;cursor:crosshair;display:block}
+#side{border-left:1px solid var(--line);overflow:auto;padding:16px 16px 40px;background:var(--paper)}
+.sec{margin-bottom:18px}
+.sec h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#7C7A70;margin:0 0 8px;font-weight:700}
+.mk{display:flex;align-items:center;gap:8px;margin-bottom:6px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:#fff}
+.mk b{font-size:12.5px;min-width:38px}
+.mk .st{font-size:12px;color:#8A887E;flex:1}
+.mk.done .st{color:var(--ok);font-weight:600}
+.mk button{padding:4px 9px;font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:6px 4px;border-bottom:1px solid #EDEAE2}
+td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+td.ref{text-align:right;color:#8A887E;font-weight:400;font-size:12px;width:74px}
+.hint{font-size:12px;color:#7C7A70;background:var(--pane);border-left:3px solid var(--acc);padding:9px 11px;border-radius:0 8px 8px 0;line-height:1.5}
+footer{height:62px;display:flex;align-items:center;gap:12px;padding:0 20px;border-top:1px solid var(--line);background:#fff}
+input[type=range]{flex:1;accent-color:var(--acc)}
+#tt{font-variant-numeric:tabular-nums;font-size:12.5px;color:#6B6960;min-width:104px}
+.badge{display:inline-block;padding:2px 7px;border-radius:6px;font-size:11.5px;font-weight:700}
+.b-ok{background:#E7F1EA;color:var(--ok)}.b-wn{background:#F7EFDC;color:var(--warn)}.b-bd{background:#F8E7E3;color:var(--bad)}
+video{display:none}
+</style></head><body>
+<header>
+  <h1>DiveForm <span style="font-weight:400;color:#7C7A70">· 형태 분석</span></h1>
+  <span class="tag">관절 엔진·모델 다운로드 불필요</span>
+  <span class="sp"></span>
+  <input type="file" id="file" accept="video/*" style="display:none">
+  <button id="btnOpen" class="pri">영상 열기</button>
+  <button id="btnDemo">데모 값</button>
+</header>
+<main>
+  <div id="wrap"><canvas id="cv" width="960" height="540"></canvas></div>
+  <aside id="side">
+    <div class="sec">
+      <h2>1 · 세 지점 기록</h2>
+      <div class="hint">영상 위에서 <b>다이버를 드래그해 박스</b>로 감싼 뒤, 그 순간의 버튼을 누르세요. 박스 안 실루엣만으로 몸통축·신전도를 측정합니다.</div>
+      <div style="height:8px"></div>
+      <div class="mk" id="mk-take"><b>이륙</b><span class="st">미기록</span><button data-k="take">기록</button></div>
+      <div class="mk" id="mk-apex"><b>정점</b><span class="st">미기록</span><button data-k="apex">기록</button></div>
+      <div class="mk" id="mk-entry"><b>입수</b><span class="st">미기록</span><button data-k="entry">기록</button></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="btnClear" style="flex:1">전체 초기화</button>
+        <button id="btnCsv" style="flex:1" disabled>CSV 저장</button>
+      </div>
+    </div>
+    <div class="sec" id="secRes" style="display:none">
+      <h2>2 · 탄도 재구성 (중력 자기보정)</h2>
+      <table id="tab"></table>
+    </div>
+    <div class="sec" id="secForm" style="display:none">
+      <h2>3 · 형태 측정</h2>
+      <table id="tabF"></table>
+    </div>
+    <div class="sec" id="secVerdict" style="display:none">
+      <h2>판정</h2>
+      <div id="verdict" class="hint"></div>
+    </div>
+  </aside>
+</main>
+<footer>
+  <button id="btnPlay" disabled>▶ 재생</button>
+  <button id="btnBack" disabled>◀ 프레임</button>
+  <button id="btnFwd" disabled>프레임 ▶</button>
+  <input type="range" id="scrub" min="0" max="1000" value="0" disabled>
+  <span id="tt">0.00 s</span>
+</footer>
+<video id="v" playsinline muted></video>
+<script>
+__MATH__
+const $=id=>document.getElementById(id);
+const cv=$("cv"), ctx=cv.getContext("2d",{willReadFrequently:true});
+const W=cv.width, H=cv.height;
+const v=$("v");
+let VW=0,VH=0,DUR=0, fit={s:1,ox:0,oy:0}, drawing=false, box=null, bStart=null;
+let marks={take:null,apex:null,entry:null}, model=null;
+
+/* ---------- 좌표 변환 ---------- */
+function computeFit(){
+  const s=Math.min(W/VW,H/VH);
+  fit={s, ox:(W-VW*s)/2, oy:(H-VH*s)/2};
+}
+const toV=(x,y)=>({x:(x-fit.ox)/fit.s, y:(y-fit.oy)/fit.s});
+const toC=(x,y)=>({x:x*fit.s+fit.ox, y:y*fit.s+fit.oy});
+
+/* ---------- 렌더 ---------- */
+function draw(){
+  ctx.fillStyle="#111"; ctx.fillRect(0,0,W,H);
+  if(v.readyState>=2 && VW){
+    try{ ctx.drawImage(v, fit.ox, fit.oy, VW*fit.s, VH*fit.s); }catch(e){}
+  } else {
+    ctx.fillStyle="#6B6960"; ctx.font="14px sans-serif"; ctx.textAlign="center";
+    ctx.fillText("영상을 열어주세요 (관절 모델 없이 동작합니다)", W/2, H/2);
+    ctx.textAlign="left";
+  }
+  if(model) drawArcs();
+  Object.entries(marks).forEach(([k,m])=>{ if(m) drawMark(k,m); });
+  if(box) drawBox(box);
+  drawLegend();
+}
+function drawBox(b){
+  ctx.save();
+  ctx.strokeStyle="#4FD1C5"; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+  ctx.strokeRect(b.x,b.y,b.w,b.h); ctx.setLineDash([]);
+  if(b.form && b.form.outline && b.form.outline.length>2){
+    ctx.beginPath();
+    b.form.outline.forEach((p,i)=> i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));
+    ctx.closePath();
+    ctx.fillStyle="rgba(79,209,197,.18)"; ctx.fill();
+    ctx.strokeStyle="#4FD1C5"; ctx.lineWidth=1.6; ctx.stroke();
+    const f=b.form, L=f.len*0.55;
+    ctx.beginPath();
+    ctx.moveTo(f.cx-Math.cos(f.ang)*L, f.cy-Math.sin(f.ang)*L);
+    ctx.lineTo(f.cx+Math.cos(f.ang)*L, f.cy+Math.sin(f.ang)*L);
+    ctx.strokeStyle="#FFD166"; ctx.lineWidth=2; ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawMark(k,m){
+  const c=toC(m.vx,m.vy);
+  ctx.save();
+  ctx.fillStyle = k==="take"?"#B0512B":k==="apex"?"#2E6B4F":"#16323C";
+  ctx.beginPath(); ctx.arc(c.x,c.y,5,0,7); ctx.fill();
+  ctx.fillStyle="#fff"; ctx.font="bold 11px sans-serif";
+  ctx.fillText(k==="take"?"이륙":k==="apex"?"정점":"입수", c.x+8, c.y-6);
+  ctx.restore();
+}
+function drawArcs(){
+  if(model){
+    ctx.save();
+    ctx.beginPath();
+    const tEnd=model.flight;
+    for(let i=0;i<=40;i++){
+      const q=tEnd*i/40, x=model.xAt(q), y=model.yAt(q), c=toC(x,y);
+      i?ctx.lineTo(c.x,c.y):ctx.moveTo(c.x,c.y);
+    }
+    ctx.strokeStyle="#FF8A5B"; ctx.lineWidth=2.4; ctx.stroke();
+    // 이상 궤도
+    if(marks.take){
+      const arc=FM.idealArc(marks.take.vx, marks.take.vy, model.pxPerM, {ang:35,v:4.5});
+      ctx.beginPath();
+      arc.forEach((p,i)=>{const c=toC(p[0],p[1]); i?ctx.lineTo(c.x,c.y):ctx.moveTo(c.x,c.y);});
+      ctx.setLineDash([7,5]); ctx.strokeStyle="#9BE3D8"; ctx.lineWidth=2; ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+}
+function drawLegend(){
+  ctx.save(); ctx.font="12px sans-serif"; ctx.textAlign="left";
+  let y=24;
+  const row=(col,txt)=>{ ctx.fillStyle=col; ctx.fillRect(16,y-8,14,4); ctx.fillStyle="#EDEAE2"; ctx.fillText(txt,36,y); y+=18; };
+  if(model){ row("#FF8A5B","내 궤도 (3점 탄도 재구성)"); row("#9BE3D8","이상 궤도 (35° · 4.5 m/s)"); }
+  row("#4FD1C5","형태 실루엣 · 주축"); 
+  ctx.restore();
+}
+
+/* ---------- 형태 측정 ---------- */
+function measureBox(b){
+  const pad=Math.max(5, Math.min(b.w,b.h)*0.14);
+  const x0=Math.max(0,Math.round(b.x-pad)), y0=Math.max(0,Math.round(b.y-pad));
+  const x1=Math.min(W-1,Math.round(b.x+b.w+pad)), y1=Math.min(H-1,Math.round(b.y+b.h+pad));
+  const w=x1-x0, h=y1-y0;
+  if(w<12||h<12) return null;
+  const d=ctx.getImageData(x0,y0,w,h).data;
+  const at=(x,y)=>{const o=(y*w+x)*4;return [d[o],d[o+1],d[o+2]];};
+  // 테두리 링 = 국소 배경
+  const ring=[];
+  for(let x=0;x<w;x++){ring.push(at(x,0));ring.push(at(x,1));ring.push(at(x,h-1));ring.push(at(x,h-2));}
+  for(let y=0;y<h;y++){ring.push(at(0,y));ring.push(at(1,y));ring.push(at(w-1,y));ring.push(at(w-2,y));}
+  const med=c=>{const a=ring.map(p=>p[c]).sort((p,q)=>p-q);return a[a.length>>1];};
+  const bg=[med(0),med(1),med(2)];
+  const dist=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++){const o=i*4;
+    dist[i]=(Math.abs(d[o]-bg[0])+Math.abs(d[o+1]-bg[1])+Math.abs(d[o+2]-bg[2]))/3;}
+  const sorted=Float32Array.from(dist).sort();
+  const thr=Math.max(16, sorted[Math.floor(sorted.length*0.72)]);
+  let n=0,sx=0,sy=0;
+  for(let i=0;i<w*h;i++) if(dist[i]>thr){n++; sx+=i%w; sy+=(i/w)|0;}
+  if(n<30) return {ok:false,n};
+  const cx=sx/n, cy=sy/n;
+  let sxx=0,syy=0,sxy=0;
+  for(let i=0;i<w*h;i++){ if(dist[i]<=thr) continue;
+    const px=i%w-cx, py=((i/w)|0)-cy; sxx+=px*px; syy+=py*py; sxy+=px*py; }
+  sxx/=n; syy/=n; sxy/=n;
+  const tr=sxx+syy, det=sxx*syy-sxy*sxy;
+  const l1=tr/2+Math.sqrt(Math.max(0,tr*tr/4-det));
+  const l2=tr/2-Math.sqrt(Math.max(0,tr*tr/4-det));
+  const ang=0.5*Math.atan2(2*sxy,sxx-syy);
+  const len=4*Math.sqrt(Math.max(0,l1)), wid=4*Math.sqrt(Math.max(0,l2));
+  // 외곽선
+  const B=26, pts=new Array(B).fill(null);
+  for(let i=0;i<w*h;i++){ if(dist[i]<=thr) continue;
+    const px=i%w, py=(i/w)|0, dx=px-cx, dy=py-cy;
+    let a=Math.atan2(dy,dx); if(a<0)a+=Math.PI*2;
+    let k=Math.floor(a/(Math.PI*2)*B); if(k>=B)k=B-1;
+    const r2=dx*dx+dy*dy; if(!pts[k]||r2>pts[k][2]) pts[k]=[x0+px,y0+py,r2];
+  }
+  const outline=[]; let last=null;
+  for(let k=0;k<B;k++){ const p=pts[k]; if(p){outline.push([p[0],p[1]]); last=p;} else if(last){outline.push([last[0],last[1]]);} }
+  // 몸통축: 수평 기준, 0~90
+  let ax=Math.abs(ang*180/Math.PI); if(ax>90) ax=180-ax;
+  return {ok:true,n,cx:x0+cx,cy:y0+cy,ang,len,wid,elong:wid>0?len/wid:0,axisDeg:ax,outline,thr};
+}
+
+/* ---------- 마커 기록 ---------- */
+function record(k){
+  if(!VW){ alert("먼저 영상을 여세요."); return; }
+  if(!box){ alert("영상 위에서 다이버를 드래그해 박스로 감싸주세요."); return; }
+  const f=measureBox(box);
+  if(!f||!f.ok){ alert("박스 안에서 형태를 찾지 못했습니다. 다이버를 더 타이트하게 감싸주세요."); return; }
+  marks[k]={t:v.currentTime, vx:f.cx, vy:f.cy, form:f};
+  refresh(); solve();
+}
+function solve(){
+  const ts=["take","apex","entry"];
+  if(!ts.every(k=>marks[k])){ model=null; render(); return; }
+  const pts=ts.map(k=>({x:marks[k].vx, y:marks[k].vy, t:marks[k].t}));
+  model=FM.ballistic(pts);
+  render();
+  if(model) showResult();
+}
+function render(){ draw(); }
+
+function showResult(){
+  const m=model, f=k=>marks[k].form;
+  const row=(a,b,c)=>`<tr><td>${a}</td><td>${b}</td><td class="ref">${c||""}</td></tr>`;
+  const d=(x,r)=>x-r;
+  const badge=(x,r,tol)=>Math.abs(x-r)<=tol?`<span class="badge b-ok">적정</span>`:Math.abs(x-r)<=tol*2?`<span class="badge b-wn">주의</span>`:`<span class="badge b-bd">이탈</span>`;
+  $("tab").innerHTML=
+    row("자동 보정 스케일", m.pxPerM.toFixed(1)+" px/m", "중력 기준")+
+    row("이륙각", m.takeoff.toFixed(1)+"°", "35°")+
+    row("입수각", m.entry.toFixed(1)+"°", "35°")+
+    row("수평속도", m.hs.toFixed(2)+" m/s", "4.5")+
+    row("비행시간", m.flight.toFixed(2)+" s","")+
+    row("최고점 높이", m.apexH.toFixed(2)+" m","")+
+    row("3점 적합 오차", m.rmsPx.toFixed(1)+" px","");
+  $("tabF").innerHTML=
+    row("이륙 몸통축", (f("take").axisDeg).toFixed(0)+"°","")+
+    row("정점 몸통축", (f("apex").axisDeg).toFixed(0)+"°","")+
+    row("입수 몸통축", (f("entry").axisDeg).toFixed(0)+"°","")+
+    row("입수 정렬오차", Math.abs(f("entry").axisDeg-Math.abs(m.entry)).toFixed(0)+"°","0°")+
+    row("정점 신전도", f("apex").elong.toFixed(1)+"×","스트림라인");
+  const dt=Math.round(d(m.takeoff,35)), de=Math.round(d(m.entry,35)), dh=d(m.hs,4.5);
+  $("verdict").innerHTML =
+    `이륙 ${badge(m.takeoff,35,3)} ${dt>0?"과대":"과소"} ${Math.abs(dt)}° &nbsp; `+
+    `입수 ${badge(m.entry,35,3)} &nbsp; 수평속도 ${badge(m.hs,4.5,0.35)}<br>`+
+    `이상 궤도(점선)와 실측 곡선(주황)의 간극을 비교하세요.`;
+  $("secRes").style.display=""; $("secForm").style.display=""; $("secVerdict").style.display="";
+  $("btnCsv").disabled=false;
+}
+
+/* ---------- 마우스 박스 ---------- */
+function pos(e){ const r=cv.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*W/r.width, y:(e.clientY-r.top)*H/r.height}; }
+cv.addEventListener("mousedown",e=>{ if(!VW) return; const p=pos(e);
+  drawing=true; bStart=p; box={x:p.x,y:p.y,w:0,h:0}; });
+window.addEventListener("mousemove",e=>{ if(!drawing) return; const p=pos(e);
+  box={x:Math.min(bStart.x,p.x),y:Math.min(bStart.y,p.y),w:Math.abs(p.x-bStart.x),h:Math.abs(p.y-bStart.y)}; render(); });
+window.addEventListener("mouseup",()=>{ if(!drawing) return; drawing=false;
+  if(box && (box.w<14||box.h<14)){ box=null; render(); return; }
+  if(box){ const f=measureBox(box); if(f&&f.ok) box.form=f; }
+  render(); });
+
+/* ---------- UI ---------- */
+function setTime(t){
+  if(!DUR) return;
+  t=Math.max(0,Math.min(DUR-0.001,t));
+  v.currentTime=t;
+  $("scrub").value=Math.round(t/DUR*1000);
+  $("tt").textContent=t.toFixed(2)+" s / "+DUR.toFixed(2)+" s";
+}
+function refresh(){
+  ["take","apex","entry"].forEach(k=>{
+    const el=$("mk-"+k), m=marks[k];
+    el.classList.toggle("done",!!m);
+    el.querySelector(".st").textContent = m? (m.t.toFixed(2)+" s · 축 "+m.form.axisDeg.toFixed(0)+"°") : "미기록";
+  });
+}
+$("btnOpen").onclick=()=>$("file").click();
+$("file").onchange=e=>{
+  const f=e.target.files[0]; if(!f) return;
+  v.src=URL.createObjectURL(f); v.load();
+  v.onloadedmetadata=()=>{
+    VW=v.videoWidth; VH=v.videoHeight; DUR=v.duration;
+    computeFit(); setTime(0);
+    ["btnPlay","btnBack","btnFwd","scrub"].forEach(id=>$(id).disabled=false);
+    marks={take:null,apex:null,entry:null}; model=null; box=null;
+    $("secRes").style.display="none";$("secForm").style.display="none";$("secVerdict").style.display="none";
+    refresh(); render();
+  };
+};
+v.onseeked=()=>render();
+$("btnPlay").onclick=()=>{ if(v.paused){v.play();$("btnPlay").textContent="❚❚ 정지";} else {v.pause();$("btnPlay").textContent="▶ 재생";} };
+v.ontimeupdate=()=>{ if(!v.paused){ $("scrub").value=Math.round(v.currentTime/Math.max(0.01,DUR)*1000); $("tt").textContent=v.currentTime.toFixed(2)+" s / "+DUR.toFixed(2)+" s"; render(); } };
+$("scrub").oninput=e=>setTime(DUR*e.target.value/1000);
+$("btnBack").onclick=()=>{ v.pause(); setTime(v.currentTime-1/30); };
+$("btnFwd").onclick=()=>{ v.pause(); setTime(v.currentTime+1/30); };
+document.querySelectorAll("[data-k]").forEach(b=>b.onclick=()=>record(b.dataset.k));
+$("btnDemo").onclick=()=>{
+  VW=1280; VH=720; DUR=2.2; computeFit();
+  ["btnPlay","btnBack","btnFwd","scrub"].forEach(id=>$(id).disabled=false);
+  // 합성 3점: 35°·4.5m/s, pxPerM=180
+  const px=180, g=9.80665, a=35*Math.PI/180, vx=4.5*Math.cos(a)*px, vy=-4.5*Math.sin(a)*px;
+  const x0=260,y0=200;
+  const mkForm=(deg)=>({ok:true,cx:0,cy:0,ang:-deg*Math.PI/180,len:120,wid:34,elong:3.5,axisDeg:deg,outline:[]});
+  const at=(t)=>({x:x0+vx*t,y:y0+vy*t+0.5*g*px*t*t});
+  [["take",0,40],["apex",0.42,20],["entry",0.86,55]].forEach(([k,t,deg])=>{
+    const p=at(t); const f=mkForm(deg); f.cx=p.x; f.cy=p.y;
+    marks[k]={t,vx:p.x,vy:p.y,form:f};
+  });
+  solve(); refresh();
+  $("btnCsv").disabled=false;
+};
+$("btnClear").onclick=()=>{ marks={take:null,apex:null,entry:null}; model=null; box=null;
+  $("secRes").style.display="none";$("secForm").style.display="none";$("secVerdict").style.display="none";
+  $("btnCsv").disabled=true; refresh(); render(); };
+$("btnCsv").onclick=()=>{
+  if(!model) return;
+  const rows=[["mark","t_s","cx_px","cy_px","axis_deg","len_px","wid_px","elong"]];
+  ["take","apex","entry"].forEach(k=>{ const m=marks[k]; if(!m) return;
+    rows.push([k,m.t.toFixed(3),m.vx.toFixed(1),m.vy.toFixed(1),m.form.axisDeg.toFixed(1),
+               m.form.len.toFixed(1),m.form.wid.toFixed(1),m.form.elong.toFixed(2)]); });
+  rows.push([]); rows.push(["metric","value","ideal"]);
+  rows.push(["px_per_m",model.pxPerM.toFixed(2),""]);
+  rows.push(["takeoff_deg",model.takeoff.toFixed(2),"35"]);
+  rows.push(["entry_deg",model.entry.toFixed(2),"35"]);
+  rows.push(["hspeed_mps",model.hs.toFixed(2),"4.5"]);
+  rows.push(["flight_s",model.flight.toFixed(3),""]);
+  rows.push(["apex_h_m",model.apexH.toFixed(3),""]);
+  rows.push(["rms_px",model.rmsPx.toFixed(2),""]);
+  const blob=new Blob(["\ufeff"+rows.map(r=>r.join(",")).join("\n")],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download="diveform_form_"+Date.now()+".csv"; a.click(); URL.revokeObjectURL(a.href);
+};
+</script></body></html>
