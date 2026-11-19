@@ -50,6 +50,13 @@ def run(page, base, video, shot, timeout):
     }
     if shot:
         page.screenshot(path=shot, full_page=True)
+        dump = page.evaluate("""() => { const S = window.__DF; if (!S || !S.frames) return null;
+            return { track: S.track || null, w: S.src && S.src.w, h: S.src && S.src.h, flip: !!(S.src && S.src.flip),
+                     phases: S.res && S.res.phases, metrics: S.res && S.res.metrics,
+                     frames: S.frames.map(f => ({ t: f.t, full: f.full || null, interp: !!f.interp })) }; }""")
+        if dump:
+            import json
+            json.dump(dump, open(shot.replace(".png", ".json"), "w"))
     errs = [l for l in logs if l.startswith(("[error]", "[pageerror]", "[warning]"))]
     return out, errs
 

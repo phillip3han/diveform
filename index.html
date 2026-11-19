@@ -375,6 +375,8 @@ const S = {
   showBg: false,
   rate: 0.25
 };
+window.__DF = S;   // 검증 도구(tools/e2e.py)가 추적 결과를 읽는 용도
+
 
 const V = { W: 1600, H: 900 };
 
@@ -494,101 +496,183 @@ const seekTo = (v, t) => new Promise(res => {
 });
 
 /* ---------- 인물 점수 · bbox ---------- */
-function poseScore(lms){
-  let minX=1, maxX=0, s=0, c=0;
-  for (const l of lms){
-    if (l.x<minX) minX=l.x; if (l.x>maxX) maxX=l.x;
-    s += (l.visibility==null?1:l.visibility); c++;
-  }
-  const size = Math.max(0.01, maxX-minX);
-  return s/c * size;                    // 평균 신뢰도 × 화면 점유
-}
-function poseBox(lms, pad){
-  let minX=1,minY=1,maxX=0,maxY=0;
-  for (const l of lms){
-    if (l.x<minX)minX=l.x; if (l.x>maxX)maxX=l.x;
-    if (l.y<minY)minY=l.y; if (l.y>maxY)maxY=l.y;
-  }
-  const p = pad==null?0.18:pad;
-  const w=maxX-minX, h=maxY-minY;
-  return { x0:clamp(minX-w*p,0,1), y0:clamp(minY-h*p,0,1),
-           x1:clamp(maxX+w*p,0,1), y1:clamp(maxY+h*p,0,1) };
-}
+/* ---------- 다이버 추적 ----------
+   1) 1차 스캔: 영상 전체에서 32장을 뽑아 전체 화면 + 겹치는 타일 6개로 모든 인물 후보 수집
+   2) 씨앗: 영상 앞 40%에서 몸통을 숙인 자세(>55°)로 가장 오래 머문 사람 = 다이버
+   3) 조밀 추적: 직전 위치 주변만 탐색. 거리·크기 게이트, 몸통이 선 사람(<50°)은 거부
+   4) 비행 자세(몸통>60°·다리>50°) 또는 준비 위치 이탈 뒤 0.4초 놓치면 입수로 보고 종료
+   크롭마다 다른 이미지를 넣으므로 Pose는 IMAGE 모드로 독립 추론한다. */
+const OUT_PX = 640;                     // 크롭 결과를 항상 이 크기로 정규화 (작은 인물 대응)
 
-/* ---------- 다중 스케일 검출: 전체 → ROI 확대 → 타일 ---------- */
-/* ---------- 다중 스케일 검출: 고정 해상도 크롭 + 인물 연속성 ---------- */
-// 크롭마다 화면이 달라 프레임 간 추적(VIDEO 모드)은 맞지 않으므로 IMAGE 모드로 독립 추론한다
-const OUT_PX = 640;                     // 크롭 결과를 항상 이 크기로 정규화 (거리 문제 핵심)
-
-function detectBest(cvs, prevBox){
+function inferCrop(cvs, x0, y0, x1, y1){
   const W = cvs.width, H = cvs.height;
-  let best = null;
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(W, x1); y1 = Math.min(H, y1);
+  const cw = x1 - x0, ch = y1 - y0;
+  if (cw < 16 || ch < 16) return [];
+  const scale = OUT_PX / Math.max(cw, ch);
+  const ow = Math.max(48, Math.round(cw*scale)), oh = Math.max(48, Math.round(ch*scale));
+  const c2 = document.createElement("canvas"); c2.width = ow; c2.height = oh;
+  c2.getContext("2d").drawImage(cvs, x0, y0, cw, ch, 0, 0, ow, oh);
+  let r;
+  try { r = poseLK.detect(c2); } catch(e){ console.warn("pose detect failed", e); return []; }
+  if (!r || !r.landmarks) return [];
+  return r.landmarks.map((L, ix) => ({
+    L: L.map(l => ({ x:(x0 + l.x*cw)/W, y:(y0 + l.y*ch)/H, z:l.z||0,
+                     visibility: l.visibility==null ? 1 : l.visibility })),
+    W: (r.worldLandmarks && r.worldLandmarks[ix]) ? r.worldLandmarks[ix] : null
+  }));
+}
 
-  const infer = (bx0, by0, bx1, by1) => {
-    const cw = Math.max(8, bx1-bx0), ch = Math.max(8, by1-by0);
-    const scale = OUT_PX / Math.max(cw, ch);
-    const ow = Math.max(48, Math.round(cw*scale)), oh = Math.max(48, Math.round(ch*scale));
-    const c2 = document.createElement("canvas"); c2.width=ow; c2.height=oh;
-    c2.getContext("2d").drawImage(cvs, bx0, by0, cw, ch, 0, 0, ow, oh);
-    let r;
-    try { r = poseLK.detect(c2); } catch(e){ console.warn("pose detect failed", e); return null; }
-    if (!r || !r.landmarks || !r.landmarks.length) return null;
-
-    let pick = null;
-    r.landmarks.forEach((L, ix) => {
-      // 크롭 좌표 → 원본 정규화
-      const mapped = L.map(l => ({
-        x: (bx0 + l.x*cw)/W, y: (by0 + l.y*ch)/H, z: l.z||0,
-        visibility: l.visibility==null?1:l.visibility
-      }));
-      const box = poseBox(mapped, 0.18);
-      let sc = poseScore(mapped);
-      // 직전 위치와 가까운 인물 우선 (군중·다중 인물 혼동 방지)
-      if (prevBox){
-        const pcx=(prevBox.x0+prevBox.x1)/2, pcy=(prevBox.y0+prevBox.y1)/2;
-        const ccx=(box.x0+box.x1)/2, ccy=(box.y0+box.y1)/2;
-        const d = Math.hypot(ccx-pcx, ccy-pcy);
-        sc = sc*0.55 + Math.max(0, 1-d*1.3)*0.45;
-      }
-      const world = (r.worldLandmarks && r.worldLandmarks[ix]) ? r.worldLandmarks[ix] : null;
-      if (!pick || sc > pick.sc) pick = { sc, L: mapped, W: world, box };
-    });
-    return pick;
-  };
-
-  const consider = (cand) => { if (cand && (!best || cand.sc > best.sc)) best = cand; };
-
-  // 1) 직전 bbox 주변 3단 패딩 (가장 빠르고 정확)
-  if (prevBox){
-    const bw=(prevBox.x1-prevBox.x0), bh=(prevBox.y1-prevBox.y0);
-    [0.5, 0.9, 1.6].forEach(pad => {
-      consider(infer(
-        Math.max(0,(prevBox.x0-bw*pad)*W), Math.max(0,(prevBox.y0-bh*pad)*H),
-        Math.min(W,(prevBox.x1+bw*pad)*W), Math.min(H,(prevBox.y1+bh*pad)*H)
-      ));
-    });
+/* 후보 요약 (캔버스 px 단위) */
+function summ(det, W, H){
+  const L = det.L;
+  const mid = (a,b) => [ (L[a].x+L[b].x)/2*W, (L[a].y+L[b].y)/2*H ];
+  const sh = mid(11,12), hp = mid(23,24), an = mid(27,28);
+  const len = Math.hypot(sh[0]-hp[0], sh[1]-hp[1]);
+  const tiltOf = (p,q) => Math.atan2(Math.abs(p[0]-q[0]), Math.abs(p[1]-q[1])+1e-6) * 180/Math.PI;
+  let minX=1e9,minY=1e9,maxX=-1e9,maxY=-1e9, vis=0;
+  for (const l of L){
+    const x=l.x*W, y=l.y*H;
+    if (x<minX)minX=x; if (x>maxX)maxX=x; if (y<minY)minY=y; if (y>maxY)maxY=y;
+    vis += l.visibility;
   }
-  if (best && best.sc > 0.35) return best;   // 추적 안정 → 나머지 스케일 생략
+  return { det, c:[(sh[0]+hp[0])/2, (sh[1]+hp[1])/2], L:Math.max(1,len),
+           tilt:tiltOf(sh,hp), leg:tiltOf(hp,an), vis:vis/L.length, box:[minX,minY,maxX,maxY] };
+}
 
-  // 2) 전체 프레임
-  consider(infer(0,0,W,H));
-  // 3) 중앙 크롭
-  consider(infer(W*0.12, H*0.05, W*0.88, H*0.95));
+/* 전체 + 겹치는 4×3 기준 2칸 크기 타일 6개 → 같은 사람 중복 제거 */
+function scanPeople(cvs){
+  const W = cvs.width, H = cvs.height;
+  const boxes = [[0,0,W,H]];
+  for (let tx=0; tx<3; tx++) for (let ty=0; ty<2; ty++)
+    boxes.push([W*tx/4, H*ty/3, W*(tx+2)/4, H*(ty+2)/3]);
+  const out = [];
+  for (const b of boxes){
+    for (const det of inferCrop(cvs, ...b)){
+      const c = summ(det, W, H);
+      if (c.L < 6) continue;
+      const k = out.findIndex(o => dist(o.c, c.c) < 0.5*Math.max(o.L, c.L));
+      if (k < 0) out.push(c); else if (c.vis > out[k].vis) out[k] = c;
+    }
+  }
+  return out;
+}
 
-  if (best && best.sc > 0.06) return best;
+/* 앞 40% 구간에서 숙인 자세로 오래 머문 무리 = 다이버 */
+function pickSeed(scan){
+  if (!scan.length) return null;
+  const T = scan[scan.length-1].t;
+  const groups = [];
+  for (const f of scan){
+    if (f.t > T*0.4) break;
+    for (const c of f.cands){
+      const s = Object.assign({ t:f.t }, c);
+      const g = groups.find(g => { const e = g[g.length-1];
+        return e.t < s.t && dist(e.c, s.c) < 0.8*Math.max(e.L, s.L); });
+      if (g) g.push(s); else groups.push([s]);
+    }
+  }
+  const score = g => g.reduce((a,s) => a + (s.tilt > 55 ? s.vis : 0), 0);
+  let best = null, bs = 0;
+  for (const g of groups){ const v = score(g); if (v > bs){ bs = v; best = g; } }
+  return best ? best.find(s => s.tilt > 55) : null;
+}
 
-  // 4) 3×3 타일 (원경 최후 수단)
-  for (let ty=0; ty<3; ty++)
-    for (let tx=0; tx<3; tx++)
-      consider(infer(W*tx/3, H*ty/3, W*(tx+1)/3, H*(ty+1)/3));
+function makeTracker(seed){
+  const T = { prev:seed, prevT:seed.t, vel:[0,0], Ls:[seed.L], home:[], moved:false, stopped:false,
+              flightAt:-1 };
+  T.unit = () => { const a = T.Ls.slice(-7).sort((x,y)=>x-y); return a[a.length>>1]; };
+  T.step = (cvs, t) => {
+    const W = cvs.width, H = cvs.height, p = T.prev;
+    const dt = Math.max(1e-3, t - T.prevT);
+    const pc = [ p.c[0] + T.vel[0]*dt, p.c[1] + T.vel[1]*dt ];
+    const U = T.unit();
+    const gate = Math.min(4.5, 1.2 + 12*dt);                    // 몸통 길이 단위
+    let best = null;
+    // 탐색 창: 예측 위치 주변 2.2 → 3.6 → 6.0배, 전체 화면, 그래도 없으면 예측 위치 근처의 겹치는 타일(고해상도)
+    const wins = [];
+    for (const pad of [2.2, 3.6, 6.0]){
+      const r = Math.max(p.box[2]-p.box[0], p.box[3]-p.box[1], 4*p.L) * pad / 2;
+      wins.push([pc[0]-r, pc[1]-r, pc[0]+r, pc[1]+r]);
+    }
+    wins.push([0, 0, W, H]);
+    const reach = (gate + 2) * U;
+    for (let tx=0; tx<3; tx++) for (let ty=0; ty<2; ty++){
+      const b = [W*tx/4, H*ty/3, W*(tx+2)/4, H*(ty+2)/3];
+      const nx = clamp(pc[0], b[0], b[2]), ny = clamp(pc[1], b[1], b[3]);
+      if (Math.hypot(nx-pc[0], ny-pc[1]) < reach) wins.push(b);
+    }
+    for (const box of wins){
+      for (const det of inferCrop(cvs, ...box)){
+        const c = summ(det, W, H);
+        const d = dist(c.c, pc) / U, ratio = c.L / U;
+        if (d > gate || ratio < 0.4 || ratio > 2.5) continue;
+        if (c.tilt < 50) continue;            // 준비~입수 동안 다이버는 항상 숙이거나 수평
+        const cost = d/gate + Math.abs(Math.log(ratio)) - 0.5*c.vis;
+        if (!best || cost < best.cost) best = { cost, c };
+      }
+      if (best) break;
+    }
+    if (best){
+      const c = best.c;
+      if (t - T.prevT > 0.005){
+        const nv = [ (c.c[0]-p.c[0])/dt, (c.c[1]-p.c[1])/dt ];
+        T.vel = [ 0.5*T.vel[0]+0.5*nv[0], 0.5*T.vel[1]+0.5*nv[1] ];
+        const vm = Math.hypot(T.vel[0], T.vel[1]), cap = 14*U;
+        if (vm > cap) T.vel = [ T.vel[0]*cap/vm, T.vel[1]*cap/vm ];
+      }
+      T.home.push(c.c);
+      const h = T.home.slice(0, 15);
+      const med = k => { const a = h.map(q=>q[k]).sort((x,y)=>x-y); return a[a.length>>1]; };
+      const flight = c.tilt > 60 && c.leg > 50;
+      T.moved = flight || (c.tilt > 60 && dist(c.c, [med(0), med(1)]) > 3*U);
+      T.prev = c; T.prevT = t; T.Ls.push(c.L);
+      return c;
+    }
+    T.vel = [ T.vel[0]*0.7, T.vel[1]*0.7 ];
+    if (T.moved && t - T.prevT > 0.4) T.stopped = true;
+    if (t - T.prevT > 1.5) T.stopped = true;      // 블록을 떠난 다이버는 다시 나타나지 않는다
+    return null;
+  };
+  return T;
+}
 
-  return best;
+/* ---------- 영상 디코딩 확인 ----------
+   HEVC(H.265, 아이폰 기본)는 브라우저에 따라 못 읽는다. 메타데이터는 열려도 화면이 검게 나오는 경우가 있어 첫 프레임 밝기로 확인한다. */
+async function sniffCodec(file){
+  const scan = async (blob) => {
+    const u = new Uint8Array(await blob.arrayBuffer());
+    for (let i=0; i<u.length-4; i++){
+      if (u[i]===0x68 && (u[i+1]===0x76 && u[i+2]===0x63 && u[i+3]===0x31 ||      // hvc1
+                          u[i+1]===0x65 && u[i+2]===0x76 && u[i+3]===0x31)) return "hevc";  // hev1
+      if (u[i]===0x61 && u[i+1]===0x76 && u[i+2]===0x63 && u[i+3]===0x31) return "h264";   // avc1
+    }
+    return null;
+  };
+  try {
+    const head = await scan(file.slice(0, 256*1024));
+    if (head) return head;
+    return await scan(file.slice(Math.max(0, file.size - 512*1024)));
+  } catch(e){ return null; }
+}
+const HEVC_HELP = "이 브라우저는 HEVC(H.265) 영상을 재생하지 못합니다. 아이폰 기본 촬영 형식입니다. "
+  + "① Safari 또는 Mac의 최신 Chrome에서 열거나, ② 아이폰 설정 › 카메라 › 포맷 › '높은 호환성'으로 다시 찍거나, "
+  + "③ H.264(MP4)로 변환해서 올려 주세요.";
+let SRC_CODEC = null;
+function assertDecoded(c, w, h){
+  const d = c.getImageData(0, 0, w, h).data;
+  let sum = 0, n = 0;
+  for (let i=0; i<d.length; i += 4*97){ sum += d[i] + d[i+1] + d[i+2]; n++; }
+  if (sum / Math.max(1,n) < 6){
+    throw new Error(SRC_CODEC === "hevc" ? HEVC_HELP
+      : "영상 프레임이 검게 나옵니다. 이 브라우저가 영상 코덱을 읽지 못하는 것 같습니다. 다른 브라우저(Safari·Chrome)로 열거나 MP4(H.264)로 변환해 주세요.");
+  }
 }
 
 /* ---------- 프레임 추출 ---------- */
 async function extractFrames(video, onProgress){
   const vw = video.videoWidth, vh = video.videoHeight, dur = video.duration;
-  if (!vw || !vh || !dur) throw new Error("영상 메타데이터를 읽을 수 없습니다.");
+  if (!vw || !vh || !dur) throw new Error(SRC_CODEC === "hevc" ? HEVC_HELP : "영상 메타데이터를 읽을 수 없습니다.");
 
   const target = 1000;
   const cw = Math.min(target, vw), ch = Math.round(cw * vh / vw);
@@ -596,31 +680,67 @@ async function extractFrames(video, onProgress){
   cvs.width = cw; cvs.height = ch;
   const c = cvs.getContext("2d", { willReadFrequently: true });
 
+  // ---- 1차 스캔: 모든 인물 후보 ----
+  const K = 32, scan = [];
+  for (let i=0; i<K; i++){
+    const t = (dur - 0.004) * i / (K - 1);
+    await seekTo(video, t);
+    c.drawImage(video, 0, 0, cw, ch);
+    if (i === 0) assertDecoded(c, cw, ch);
+    scan.push({ t, cands: scanPeople(cvs) });
+    if (onProgress) onProgress(0.3 * (i+1)/K);
+  }
+  const seed = pickSeed(scan);
+  if (!seed) throw new Error("다이버를 찾지 못했습니다. 출발대 위에서 준비 자세를 취한 장면이 영상 앞부분에 보이도록 찍어 주세요.");
+
+  // ---- 2차: 씨앗부터 조밀 추적 ----
   const N = clamp(Math.round(dur * 60), 40, 240);
   const out = [];
-  let misses = 0, prevBox = null, prevOk = null;
+  const tr = makeTracker(seed);
+  let misses = 0, seedIdx = -1, flightIdx = -1, lastIdx = -1;
 
   for (let i=0; i<N; i++){
     const t = (dur - 0.004) * i / (N - 1);
+    if (t < seed.t - 1e-6 || tr.stopped){
+      out.push({ t, p:null, conf:0, norm:true });
+      if (onProgress) onProgress(0.3 + 0.7*(i+1)/N);
+      continue;
+    }
     await seekTo(video, t);
     c.drawImage(video, 0, 0, cw, ch);
-
-    let got = null;
-    try { got = detectBest(cvs, prevBox, 2.2); } catch(e){ got = null; }
-
-    if (got && got.L){
-      const pose = toPose(got.L, 1, 1);
-      if (pose){
-        const wl = got.W ? got.W.map(l => [l.x, l.y, l.z]) : null;
-        const full = got.L ? got.L.map(l => [ +l.x.toFixed(5), +l.y.toFixed(5), +(l.z||0).toFixed(5),
-                                             +(l.visibility==null?1:l.visibility).toFixed(3) ]) : null;
-        out.push({ t, p: pose.p, w: wl, full, conf: pose.conf, norm:true });
-        prevBox = got.box; prevOk = got;
-      } else { out.push({ t, p:null, conf:0, norm:true }); misses++; }
+    const hit = tr.step(cvs, t);
+    const pose = hit ? toPose(hit.det.L, 1, 1) : null;
+    if (pose){
+      const got = hit.det;
+      const wl = got.W ? got.W.map(l => [l.x, l.y, l.z]) : null;
+      const full = got.L.map(l => [ +l.x.toFixed(5), +l.y.toFixed(5), +(l.z||0).toFixed(5),
+                                   +(l.visibility==null?1:l.visibility).toFixed(3) ]);
+      out.push({ t, p: pose.p, w: wl, full, conf: pose.conf, norm:true,
+                 tilt: hit.tilt, leg: hit.leg });
+      if (seedIdx < 0) seedIdx = i;
+      lastIdx = i;
     } else {
       out.push({ t, p:null, conf:0, norm:true }); misses++;
     }
-    if (onProgress) onProgress((i+1)/N);
+    if (onProgress) onProgress(0.3 + 0.7*(i+1)/N);
+  }
+
+  // 이륙 힌트: 추적 종료(입수) 직전 0.8초 안의 마지막 비행 자세 구간의 시작.
+  // 준비 중 오검출로 잠깐 '비행처럼' 보이는 프레임은 입수와 떨어져 있어 무시된다.
+  const isFlight = f => f.p && f.tilt > 60 && f.leg > 50;
+  if (lastIdx > 0){
+    const tEnd = out[lastIdx].t;
+    let j = lastIdx;
+    while (j > seedIdx && !isFlight(out[j]) && tEnd - out[j].t < 0.8) j--;
+    if (isFlight(out[j])){
+      let k = j, gap = 0;
+      while (k-1 > seedIdx && gap <= 2){
+        const f = out[k-1];
+        if (isFlight(f)){ k--; gap = 0; } else if (!f.p){ k--; gap++; } else break;
+      }
+      while (k < j && !isFlight(out[k])) k++;
+      flightIdx = k;
+    }
   }
 
   // 결측 프레임 보간 (앞뒤 정상 프레임 사이만)
@@ -675,8 +795,10 @@ async function extractFrames(video, onProgress){
 
   const filled = out.filter(f=>f.p).length;
   const trackedN = out.filter(f=>f.p && !f.interp).length;
-  if (trackedN < n*0.25) throw new Error("포즈를 검출하지 못했습니다(" + Math.round(trackedN/n*100) + "%). 인물이 너무 작거나 화면 밖이면 검출이 어렵습니다. 더 가까이서 촬영한 영상을 권장합니다.");
-  return { frames: out, w: vw, h: vh, dur, cvs, ctx: c };
+  if (trackedN < 12) throw new Error("다이버 관절을 충분히 추적하지 못했습니다(" + trackedN + "프레임). 인물이 너무 작거나 가려진 영상입니다. 출발대가 화면 높이의 1/3 이상 차도록 더 가까이서 찍어 주세요.");
+  const span = (lastIdx >= seedIdx && seedIdx >= 0) ? (lastIdx - seedIdx + 1) : n;
+  return { frames: out, w: vw, h: vh, dur, cvs, ctx: c,
+           track: { seedIdx, flightIdx, lastIdx, tracked: trackedN, span } };
 }
 
 /* 손끝 정밀화: 입수 전후 프레임에서 손 ROI 추론 */
@@ -943,6 +1065,14 @@ function buildAnalysis(frames, src, cal){
     if (f.p.hand[1]*src.h >= waterY){ entry = i; break; }
   }
 
+  // 추적기 힌트: 비행 자세가 처음 잡힌 프레임 = 이륙 직후, 추적 종료 = 입수
+  const tk = src.track;
+  if (tk && tk.flightIdx > 0){
+    const hintTake = Math.max(start+1, tk.flightIdx - 1);
+    if (takeoff < 0 || Math.abs(takeoff - hintTake) > 3) takeoff = hintTake;
+    const hintEntry = tk.lastIdx;
+    if (hintEntry > takeoff && (entry < 0 || entry > hintEntry || entry <= takeoff)) entry = hintEntry;
+  }
   if (takeoff < 0){ takeoff = Math.round(n*0.35); }
   if (entry < 0)  { entry = Math.min(n-1, takeoff + Math.round((src.dur||1)/step*0.25)); }
   if (entry <= takeoff) entry = Math.min(n-1, takeoff+2);
@@ -1763,10 +1893,12 @@ function showReport(){
 
   $("mScale").textContent = Math.round(S.cal.pxPerM) + " px/m";
   $("mDir").textContent = S.src && S.src.flip ? "자동 정렬 (좌→우)" : "좌→우";
-  const tracked = S.frames.filter(f=>f.p && f.conf>0.6).length / Math.max(1,S.frames.length);
-  $("mTrack").textContent = Math.round(tracked*100) + "%";
-  const interp = S.frames.filter(f=>f.interp).length;
-  if (interp) $("mTrack").textContent += " (보간 " + Math.round(interp/S.frames.length*100) + "%)";
+  const tk = S.track;
+  const seg = (tk && tk.seedIdx >= 0) ? S.frames.slice(tk.seedIdx, tk.lastIdx+1) : S.frames;
+  const tracked = seg.filter(f=>f.p && !f.interp).length / Math.max(1, seg.length);
+  const interp = seg.filter(f=>f.interp).length;
+  $("mTrack").textContent = Math.round(tracked*100) + "%" + (tk ? " · 준비~입수" : "")
+    + (interp ? " (보간 " + Math.round(interp/seg.length*100) + "%)" : "");
 
   // 타임라인 밴드
   const n = S.frames.length, p = r.phases;
@@ -1913,6 +2045,16 @@ function finishAnalysis(){
   setT(S.frames[S.res.phases.start].t);
 }
 
+function failEarly(err){
+  console.error(err);
+  const el = $("st_decode"); if (el) el.className = "step err";
+  $("steps").insertAdjacentHTML("beforeend",
+    `<div class="note" style="color:#9E3B2E"><b>실패</b> — ${err.message}</div>`);
+  S.busy = false;
+  $("cardSetup").classList.remove("hide");
+  updateUploadUI();
+}
+
 async function analyzeVideo(file){
   if (!poseLK){ setEngine("엔진 없음 — 데모만 가능", "err"); return; }
   S.busy = true;
@@ -1935,17 +2077,19 @@ async function analyzeVideo(file){
   const mark = (k, cls) => { const el = $("st_"+k); if (el) el.className = "step " + cls; };
 
   if (S.srcUrl){ try { URL.revokeObjectURL(S.srcUrl); } catch(e){} S.srcUrl = null; }
+  SRC_CODEC = await sniffCodec(file);
   const url = URL.createObjectURL(file);
   S.srcUrl = url;
   const video = document.createElement("video");
   video.src = url; video.muted = true; video.playsInline = true; video.preload = "auto";
   video.className = "hiddenvid";
   document.body.appendChild(video);
-  await new Promise((res, rej)=>{
+  const loaded = await new Promise((res, rej)=>{
     video.onloadedmetadata = res;
-    video.onerror = () => rej(new Error("영상을 열 수 없습니다. 코덱을 확인하세요."));
-    setTimeout(()=>rej(new Error("영상 로딩 시간 초과")), 20000);
-  });
+    video.onerror = () => rej(new Error(SRC_CODEC === "hevc" ? HEVC_HELP : "영상을 열 수 없습니다. 코덱을 확인하세요."));
+    setTimeout(()=>rej(new Error(SRC_CODEC === "hevc" ? HEVC_HELP : "영상 로딩 시간 초과")), 20000);
+  }).then(() => true, err => { failEarly(err); return false; });
+  if (!loaded) return;
 
   try{
     mark("decode","done");
@@ -1954,8 +2098,9 @@ async function analyzeVideo(file){
     mark("pose","done");
 
     S.src = { kind:"video", el:video, w:got.w, h:got.h, dur:got.dur,
-              label:file.name, samples:got.frames.length, cvs:got.cvs, ctx:got.ctx };
+              label:file.name, samples:got.frames.length, cvs:got.cvs, ctx:got.ctx, track:got.track };
     S.frames = got.frames;
+    S.track = got.track;
     const nd = normalizeDirection(S.frames);
     S.src.flip = nd.flip;
     $("mFile").textContent = file.name.slice(0,28);
