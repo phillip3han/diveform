@@ -3,3 +3,8 @@
 *.png
 *.jpg
 *.log
+*.mp4
+*.MP4
+*.mov
+*.MOV
+__pycache__/

@@ -415,13 +415,13 @@ async function bootEngine(){
       try{
         poseLK = await MP.PoseLandmarker.createFromOptions(fs, {
           baseOptions: { modelAssetPath: t.pose, delegate },
-          runningMode: "VIDEO", numPoses: 4
+          runningMode: "IMAGE", numPoses: 4
         });
       }catch(e){
         delegate = "CPU";
         poseLK = await MP.PoseLandmarker.createFromOptions(fs, {
           baseOptions: { modelAssetPath: t.pose, delegate },
-          runningMode: "VIDEO", numPoses: 4
+          runningMode: "IMAGE", numPoses: 4
         });
       }
       ENGINE.state = "pose"; ENGINE.delegate = delegate;
@@ -517,13 +517,11 @@ function poseBox(lms, pad){
 
 /* ---------- 다중 스케일 검출: 전체 → ROI 확대 → 타일 ---------- */
 /* ---------- 다중 스케일 검출: 고정 해상도 크롭 + 인물 연속성 ---------- */
-let TS = 0;   // VIDEO 모드는 호출마다 증가하는 타임스탬프가 필수
+// 크롭마다 화면이 달라 프레임 간 추적(VIDEO 모드)은 맞지 않으므로 IMAGE 모드로 독립 추론한다
 const OUT_PX = 640;                     // 크롭 결과를 항상 이 크기로 정규화 (거리 문제 핵심)
 
 function detectBest(cvs, prevBox){
   const W = cvs.width, H = cvs.height;
-  TS = Math.max(TS + 16, Math.round(performance.now()));
-  const ts = TS;
   let best = null;
 
   const infer = (bx0, by0, bx1, by1) => {
@@ -533,7 +531,7 @@ function detectBest(cvs, prevBox){
     const c2 = document.createElement("canvas"); c2.width=ow; c2.height=oh;
     c2.getContext("2d").drawImage(cvs, bx0, by0, cw, ch, 0, 0, ow, oh);
     let r;
-    try { r = poseLK.detectForVideo(c2, ts); } catch(e){ return null; }
+    try { r = poseLK.detect(c2); } catch(e){ console.warn("pose detect failed", e); return null; }
     if (!r || !r.landmarks || !r.landmarks.length) return null;
 
     let pick = null;
@@ -1290,6 +1288,23 @@ function blockGeomRaw(){
 }
 const rmapPx = q => [ q[0]*S.recon.k + S.recon.ox, q[1]*S.recon.k + S.recon.oy ];
 const rmap   = q => rmapPx([ q[0]*S.src.w, q[1]*S.src.h ]);
+// 재구성 좌표계로 스켈레톤 뼈대 그리기
+function rbones(p, col, width, dash, alpha){
+  ctx.save();
+  ctx.globalAlpha = alpha==null ? 1 : alpha;
+  ctx.strokeStyle = col; ctx.lineWidth = width; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  if (dash) ctx.setLineDash(dash);
+  bonesOf(p).forEach(([a,b])=>{
+    if (!p[a] || !p[b]) return;
+    const A = rmap(p[a]), B = rmap(p[b]);
+    ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.stroke();
+  });
+  if (p.head){
+    const h = rmap(p.head);
+    ctx.beginPath(); ctx.arc(h[0], h[1], width*2.2, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+}
 
 /* 스타트 블록 (측면) — 준비 자세에서 발이 허공에 뜨지 않도록 */
 function drawBlock(r){
