@@ -36,9 +36,11 @@ def summary(page, video, took):
         "video": os.path.basename(video), "engine": page.inner_text("#engine"), "sec": round(took, 1),
         "track": page.inner_text("#mTrack"), "scale": page.inner_text("#mScale"),
         "score": page.inner_text("#score") if page.is_visible("#score") else "—",
-        "took": page.inner_text("#tookNote") if page.query_selector("#tookNote") else "",
+        "took": page.inner_text("#infoNote") if page.query_selector("#infoNote") else "",
         "quality": page.inner_text("#quality") if page.query_selector("#quality") else "",
         "steps": page.inner_text("#steps").replace("\n", " | ")[-300:],
+        "history": page.evaluate("() => window.__DF_hist ? window.__DF_hist().Hist.all().then(a => a.map(m => m.name + ':' + m.score)) : null"),
+        "session": page.evaluate("() => window.__DF.sessionId"),
     }
 
 

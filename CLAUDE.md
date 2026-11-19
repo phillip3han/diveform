@@ -7,7 +7,8 @@
 - `index.html` — 관절 추적 앱 전체 (HTML+CSS+JS 단일 파일, ~2,300줄). MediaPipe Tasks Vision 사용
 - `shape.html` — 관절 엔진 없이 박스 3점(이륙·정점·입수)으로 탄도 재구성하는 보조 도구
 - `vendor/` — MediaPipe 번들·WASM·모델(.task) 내장본 41MB. 지우지 말 것 (CDN 차단 환경 대응)
-- `tools/e2e.py` — 헤드리스 Chrome으로 실제 영상을 올려 끝까지 돌리는 검증 스크립트
+- `tools/e2e.py` — 헤드리스 Chrome으로 실제 영상을 올려 끝까지 돌리는 검증 스크립트 (`--replay`, `--pick-at`)
+- `tools/e2e_history.py` — 분석 기록(저장·고정·최근 5개·전환·새로고침 유지) 시험
 - `docs/` — 기획·설계·환경·이력 문서. 큰 결정을 바꾸면 해당 문서도 갱신
 
 ## 실행
@@ -34,4 +35,7 @@ python3 tools/e2e.py /path/v1.h264.mp4 --shot /tmp/e2e --timeout 3000000
 - 포즈 엔진은 `runningMode: "IMAGE"` + `poseLK.detect()`. 크롭마다 다른 이미지를 넣으므로 VIDEO 모드(타임스탬프·추적 상태) 쓰지 말 것
 - 각도 정의가 셋 다 다르다: 세트 = 관절 내각, 이륙 = 무게중심 속도벡터 vs 수평, 입수 = 신체축 vs 수면
 - 사용자 대면 문구는 한국어
+- 분석 기록은 IndexedDB `diveform`(meta·data 저장소). 저장 형식을 바꾸면 이전 기록을 여는 경로도 확인
+- 화면 색·글꼴 규칙은 docs/design/ui.md (노랑은 이상 궤적·고정에만)
+- 운영 주소 https://phillip3han.github.io/diveform/ — main 푸시 = 배포
 - 커밋은 `main`. GitHub Pages 워크플로(`.github/workflows/pages.yml`)가 main 푸시 시 배포

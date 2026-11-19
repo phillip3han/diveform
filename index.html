@@ -3,328 +3,381 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DiveForm — 수영 스타트 각도 분석</title>
+<title>DiveForm — 수영 스타트 분석</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
+  /* 토큰: 수영장 데크(바탕) · 풀 남색(글자·무대) · 물빛 청록(조작) · 배영 깃발 노랑(이상 궤적·고정) */
   :root{
-    --ink:#1D1D1A; --ink2:#55534A; --ink3:#8A8578;
-    --paper:#FBFAF6; --panel:#FFFDF7; --rule:#D9D4C7; --rule2:#EAE6DA;
-    --acc:#B0512B; --accSoft:#F2E4DC; --teal:#16323C; --tealSoft:#E3EBEE;
-    --ok:#2E6B4F; --warn:#9A6A16; --bad:#9E3B2E;
-    --stage:#0E1B21;
+    --ink:#0F2A36; --ink2:#41606C; --ink3:#7C939C;
+    --deck:#F3F6F7; --surface:#FFFFFF; --line:#DCE5E9; --line2:#EBF0F2;
+    --pool:#0B2733; --aqua:#0E8FA0; --aquaSoft:#E2F3F5; --flag:#F4C542; --flagSoft:#FDF5DA;
+    --ok:#2F8F5B; --warn:#B7800A; --bad:#C2412D;
+    --num:"Barlow Condensed","Pretendard Variable",Pretendard,sans-serif;
+    --r:10px; --rs:7px;
+    /* 기존 코드 호환 */
+    --acc:var(--aqua); --accSoft:var(--aquaSoft); --teal:var(--ink); --paper:var(--deck); --panel:var(--surface); --rule:var(--line); --rule2:var(--line2); --stage:var(--pool);
   }
   *{box-sizing:border-box;}
   html,body{margin:0;}
   body{
-    background:var(--paper); color:var(--ink);
-    font-family:"Helvetica Neue",Arial,"NanumGothic","Apple SD Gothic Neo",sans-serif;
-    -webkit-font-smoothing:antialiased; font-size:14px;
+    background:var(--deck); color:var(--ink);
+    font-family:"Pretendard Variable",Pretendard,-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    -webkit-font-smoothing:antialiased; font-size:14px; line-height:1.5;
   }
-  .wrap{max-width:1380px; margin:0 auto; padding:16px 20px 40px;}
+  button{font:inherit;}
+  :focus-visible{outline:2px solid var(--aqua); outline-offset:2px;}
+  .wrap{max-width:1360px; margin:0 auto; padding:18px 22px 48px;}
+  .hide{display:none !important;}
 
-  /* ---------- top bar ---------- */
-  .top{display:flex; align-items:center; gap:16px; padding-bottom:12px; border-bottom:1.5px solid var(--ink); flex-wrap:wrap;}
-  .logo{font-size:20px; font-weight:800; letter-spacing:-0.5px;}
-  .logo b{color:var(--acc);}
-  .tagline{font-size:11.5px; color:var(--ink3);}
-  .seg{margin-left:auto; display:flex; border:1px solid var(--ink);}
-  .seg button{border:0; background:transparent; color:var(--ink); font:inherit; font-size:12px; font-weight:700; padding:7px 14px; cursor:pointer;}
-  .seg button.on{background:var(--ink); color:var(--paper);}
-  .engine{font-size:10.5px; letter-spacing:.6px; text-transform:uppercase; font-weight:700; padding:4px 9px; border:1px solid var(--rule); color:var(--ink3);}
-  .engine.ready{color:var(--ok); border-color:#BBD3C6; background:#EFF5F1;}
-  .engine.err{color:var(--bad); border-color:#E3C6C0; background:#F8EEEC;}
+  /* 상단 */
+  .top{display:flex; align-items:center; gap:14px; padding-bottom:16px;}
+  .logo{font-family:var(--num); font-size:28px; font-weight:700; letter-spacing:.2px; line-height:1;}
+  .logo b{color:var(--aqua); font-weight:700;}
+  .tagline{font-size:13px; color:var(--ink3);}
+  .engine{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink3); margin-left:auto;}
+  .engine::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--ink3);}
+  .engine.ready{color:var(--ink2);} .engine.ready::before{background:var(--ok);}
+  .engine.err{color:var(--bad);} .engine.err::before{background:var(--bad);}
+  .seg{display:none;}
+  .cta{display:flex; align-items:center; gap:8px; border:0; border-radius:var(--rs); background:var(--ink); color:#fff;
+       font-size:14px; font-weight:600; padding:10px 16px; cursor:pointer;}
+  .cta:hover{background:#163B4B;}
+  .cta svg{width:16px; height:16px;}
 
-  /* ---------- layout ---------- */
-  .main{display:grid; grid-template-columns:minmax(0,1fr) 336px; gap:18px; margin-top:14px; align-items:start;}
+  /* 레이아웃 */
+  .main{display:grid; grid-template-columns:minmax(0,1fr) 352px; gap:20px; align-items:start;}
   @media (max-width:1120px){ .main{grid-template-columns:1fr;} }
 
-  .stagebox{background:var(--stage); border:1px solid var(--rule); position:relative; overflow:hidden;}
+  /* 무대 */
+  .stagebox{background:var(--pool); border-radius:var(--r) var(--r) 0 0; position:relative; overflow:hidden;}
   #stage{display:block; width:100%; height:auto; cursor:default;}
   #stage.calib{cursor:ns-resize;}
-  .progline{position:absolute; left:0; right:0; top:0; height:2px; background:transparent;}
-  .progline i{display:block; height:2px; background:var(--acc); width:0%; transition:width .18s ease;}
-  .stagetag{position:absolute; top:10px; right:14px; text-align:right; font-size:10.5px; letter-spacing:1.2px; text-transform:uppercase; font-weight:700; color:rgba(232,241,243,.55);}
-  .stagemeta{display:flex; gap:14px; flex-wrap:wrap; font-size:11px; color:var(--ink3); padding:7px 10px; background:var(--panel); border-top:1px solid var(--rule);}
-  .stagemeta b{color:var(--ink2);}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:5px;vertical-align:middle;}
+  .progline{position:absolute; left:0; right:0; top:0; height:3px; z-index:4;}
+  .progline i{display:block; height:3px; background:var(--flag); width:0%; transition:width .2s ease;}
+  .stagetag{display:none !important;}
+  .chip-upload{display:none !important;}
+  .stagemeta{display:flex; gap:18px; flex-wrap:wrap; align-items:center; font-size:12.5px; color:var(--ink3);
+             padding:9px 14px; background:var(--surface); border:1px solid var(--line); border-top:0;}
+  .stagemeta b{color:var(--ink); font-weight:600;}
+  .stagemeta .fname{color:var(--ink); font-weight:600; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .stagemeta .opt{display:none;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--aqua);display:inline-block;margin-right:7px;vertical-align:middle;}
 
-  /* ---------- controls ---------- */
-  .controls{margin-top:12px; background:var(--panel); border:1px solid var(--rule); padding:11px 13px;}
+  /* 재생·보기 */
+  .controls{background:var(--surface); border:1px solid var(--line); border-top:0; border-radius:0 0 var(--r) var(--r); padding:12px 14px 14px;}
   .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-  button.btn{font:inherit; font-size:12px; font-weight:700; border:1px solid var(--ink); background:var(--ink); color:var(--paper); padding:7px 13px; cursor:pointer; letter-spacing:.2px;}
-  button.btn:disabled{opacity:.35; cursor:not-allowed;}
-  button.gh{background:transparent; color:var(--ink); border-color:var(--rule);}
-  button.gh.on{background:var(--teal); color:#fff; border-color:var(--teal);}
-  button.btn:hover:not(:disabled){opacity:.86;}
-  .time{margin-left:auto; font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--ink2);}
-  input[type=range]{width:100%; -webkit-appearance:none; appearance:none; height:5px; background:#E4E0D3; outline:none; margin:0;}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:15px; height:15px; border-radius:50%; background:var(--ink); border:2px solid var(--paper); box-shadow:0 0 0 1px var(--ink); cursor:pointer;}
-  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--ink);border:2px solid var(--paper);cursor:pointer;}
-  .scrubwrap{margin-top:9px;}
-  .bands{display:flex; height:16px; margin-top:5px; font-size:9px; letter-spacing:.3px; color:#fff; font-weight:700;}
-  .bands div{display:flex; align-items:center; justify-content:center; opacity:.92; overflow:hidden; white-space:nowrap;}
-  .legend{display:flex; gap:15px; font-size:11px; color:var(--ink2); margin-top:8px; flex-wrap:wrap;}
-  .legend i{display:inline-block; width:20px; border-top:3px solid #7FB3C4; vertical-align:middle; margin-right:5px;}
-  .legend i.dash{border-top:2px dashed var(--acc);}
+  .row + .row{margin-top:10px;}
+  .grow{flex:1;}
+  .btn{display:inline-block; line-height:1.4; font-size:13px; font-weight:600; border:1px solid var(--ink); background:var(--ink); color:#fff; padding:7px 12px; border-radius:var(--rs); cursor:pointer;}
+  .btn:disabled{opacity:.35; cursor:not-allowed;}
+  .gh{background:var(--surface); color:var(--ink2); border-color:var(--line);}
+  .gh:hover:not(:disabled){border-color:var(--ink3); color:var(--ink);}
+  .gh.on{background:var(--aquaSoft); color:var(--ink); border-color:#B5DDE2;}
+  .iconbtn{width:34px; padding:7px 0 !important; text-align:center;}
+  #play{min-width:78px;}
+  .time{font-family:var(--num); font-size:17px; font-weight:600; font-variant-numeric:tabular-nums; color:var(--ink); min-width:62px; text-align:right;}
+  .speedseg,.viewseg{display:inline-flex; background:var(--deck); border:1px solid var(--line); border-radius:var(--rs); padding:2px;}
+  .speedseg button,.viewseg button{border:0; background:transparent; color:var(--ink2); font-size:12.5px; font-weight:600; padding:5px 9px; border-radius:5px; cursor:pointer;}
+  .speedseg button.on,.viewseg button.on{background:var(--surface); color:var(--ink); box-shadow:0 0 0 1px var(--line);}
+  .grp{font-size:12px; color:var(--ink3); margin-right:2px;}
+  .vdiv{width:1px; height:22px; background:var(--line); margin:0 6px;}
+  input[type=range]{width:100%; -webkit-appearance:none; appearance:none; height:4px; background:var(--line); border-radius:2px; outline:none; margin:0;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--ink); border:3px solid var(--surface); box-shadow:0 0 0 1px var(--ink); cursor:pointer;}
+  input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--ink);border:3px solid var(--surface);cursor:pointer;}
+  .scrubwrap{margin-top:12px;}
+  .bands{display:flex; height:18px; margin-top:7px; font-size:11px; color:#fff; font-weight:600; border-radius:4px; overflow:hidden;}
+  .bands div{display:flex; align-items:center; justify-content:center; overflow:hidden; white-space:nowrap;}
+  .legend{display:flex; gap:16px; font-size:12px; color:var(--ink3); margin-top:9px; flex-wrap:wrap;}
+  .legend i{display:inline-block; width:18px; border-top:3px solid #7FD3E8; vertical-align:middle; margin-right:6px;}
+  .legend i.dash{border-top:2px dashed var(--flag);}
   .legend i.dotl{border-top:2px dotted var(--ink3);}
+  details.menu{position:relative;}
+  details.menu > summary{list-style:none;}
+  details.menu > summary::-webkit-details-marker{display:none;}
+  details.menu .pop{position:absolute; right:0; top:calc(100% + 6px); z-index:20; background:var(--surface); border:1px solid var(--line);
+       border-radius:var(--rs); padding:6px; display:flex; flex-direction:column; gap:4px; min-width:170px; box-shadow:0 8px 24px rgba(15,42,54,.12);}
+  details.menu .pop button{text-align:left; margin:0 !important;}
 
-  /* ---------- side ---------- */
-  .side{display:flex; flex-direction:column; gap:10px;}
-  .card{background:var(--panel); border:1px solid var(--rule); padding:12px 13px;}
-  .card h4{margin:0 0 8px; font-size:10.5px; letter-spacing:1.3px; text-transform:uppercase; color:var(--ink3); font-weight:700;}
-  .drop{border:1.5px dashed var(--acc); background:#FDF7F2; padding:18px 12px; text-align:center; cursor:pointer; transition:background .15s;}
-  .drop:hover,.drop.hot{background:var(--accSoft);}
-  .drop b{display:block; font-size:12.5px; color:var(--acc); margin-bottom:3px;}
-  .drop span{font-size:11px; color:var(--ink3);}
-  .drop input{display:none;}
-  .note{font-size:11px; color:var(--ink3); line-height:1.6; margin-top:9px;}
+  /* 국면 */
+  .phasebar{display:flex; gap:12px; margin-top:22px; align-items:center;}
+  .phasebar .ptitle{font-size:15px; font-weight:700; margin-right:auto;}
+  .phasebar .ptitle span{font-size:12.5px; font-weight:500; color:var(--ink3); margin-left:10px;}
+  .phasebar .hint{font-size:12.5px; color:var(--ink3); white-space:nowrap;}
+  #strip{display:block; width:100%; height:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--r); margin-top:8px; cursor:pointer;}
+  .striplab{display:none;}
+  .hiddenvid{position:fixed; left:-9999px; top:0; width:2px; height:2px; opacity:.01; pointer-events:none;}
+
+  /* 사이드 */
+  .side{display:flex; flex-direction:column; gap:14px;}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:16px;}
+  .card h4{margin:0 0 12px; font-size:14px; font-weight:700; color:var(--ink);}
+  .card h4 small{font-weight:500; color:var(--ink3); font-size:12px; margin-left:6px;}
+  .note{font-size:12.5px; color:var(--ink3); line-height:1.6; margin-top:10px;}
   .note b{color:var(--ink2);}
 
-  .scoreline{display:flex; align-items:flex-end; gap:8px;}
-  .score{font-size:38px; font-weight:800; letter-spacing:-2px; line-height:1;}
-  .scoreof{font-size:11.5px; color:var(--ink3); padding-bottom:4px;}
-  .verdict{font-size:12px; color:var(--ink2); line-height:1.55; margin-top:6px;}
-  .grade{margin-left:auto; font-size:10px; font-weight:700; letter-spacing:.8px; padding:3px 7px; border:1px solid currentColor; align-self:flex-start;}
+  /* 기록 */
+  .dock{padding:14px;}
+  .dock .dh{display:flex; align-items:baseline; margin-bottom:10px;}
+  .dock .dh b{font-size:15px; font-weight:700;}
+  .dock .dh .st{margin-left:auto; font-size:12px; color:var(--ink3);}
+  .drop2{display:flex; align-items:center; gap:10px; border:1.5px dashed #B5DDE2; background:#F6FBFC; border-radius:var(--rs); padding:12px; cursor:pointer;}
+  .drop2.hot{background:var(--aquaSoft); border-color:var(--aqua);}
+  .drop2 svg{width:22px; height:22px; color:var(--aqua); flex:none;}
+  .drop2 b{display:block; font-size:13.5px; color:var(--ink); font-weight:600;}
+  .drop2 span{font-size:12px; color:var(--ink3);}
+  .drop2 .cam{margin-left:auto; font-size:12.5px; font-weight:600; border:1px solid var(--line); background:var(--surface); color:var(--ink2); padding:6px 10px; border-radius:6px; cursor:pointer;}
+  .drop2 input{display:none;}
+  .hsec{font-size:12.5px; color:var(--ink3); font-weight:600; margin:14px 0 6px; display:flex; align-items:center;}
+  .hsec span{margin-left:auto; font-weight:500;}
+  .hlist{display:flex; flex-direction:column; gap:4px;}
+  .hitem{display:grid; grid-template-columns:52px minmax(0,1fr) auto auto; gap:8px; align-items:center; padding:6px; border-radius:var(--rs); cursor:pointer; border:1px solid transparent;}
+  .hitem:hover{background:var(--deck);}
+  .hitem.cur{background:var(--aquaSoft); border-color:#B5DDE2;}
+  .hitem.pinned{box-shadow:inset 3px 0 0 var(--flag);}
+  .hitem img,.hitem .ph0{width:52px; height:40px; object-fit:cover; border-radius:5px; background:var(--pool); display:block;}
+  .hitem .nm{font-size:13.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .hitem .dt{font-size:11.5px; color:var(--ink3);}
+  .hitem .sc{font-family:var(--num); font-size:24px; font-weight:600; line-height:1; font-variant-numeric:tabular-nums; min-width:30px; text-align:right;}
+  .hitem .dt{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hitem .acts{display:flex; gap:0;}
+  .hitem .acts button{border:0; background:transparent; color:var(--ink3); width:23px; height:26px; border-radius:5px; cursor:pointer; font-size:14px; line-height:1;}
+  .hitem .acts button:hover{background:var(--surface); color:var(--ink);}
+  .hitem .acts .pin.on{color:#C99A0E;}
+  .hitem .acts .del.arm{color:#fff; background:var(--bad); width:auto; padding:0 7px; font-size:12px;}
+  .hitem input.rn{font:inherit; font-size:13.5px; font-weight:600; width:100%; border:1px solid var(--aqua); border-radius:5px; padding:2px 5px;}
+  .hempty{font-size:12.5px; color:var(--ink3); padding:8px 2px; line-height:1.6;}
+  .hfoot{display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12px; color:var(--ink3);}
+  .hfoot button{margin-left:auto; border:0; background:transparent; color:var(--aqua); font-weight:600; cursor:pointer; padding:0; font-size:12.5px;}
 
-  .m{border-top:1px solid var(--rule2); padding:8px 0 6px;}
+  /* 점수 — 대회 전광판 숫자 */
+  .scoreline{display:flex; align-items:flex-end; gap:8px;}
+  .score{font-family:var(--num); font-size:64px; font-weight:700; line-height:.85; font-variant-numeric:tabular-nums;}
+  .scoreof{font-size:13px; color:var(--ink3); padding-bottom:3px;}
+  .grade{margin-left:auto; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px; align-self:flex-start; color:#fff; background:var(--ok);}
+  .grade.warn{color:#fff; background:var(--warn);} .grade.bad{color:#fff; background:var(--bad);} .grade.ok{color:#fff; background:var(--ok);}
+  .verdict{font-size:13.5px; color:var(--ink2); line-height:1.6; margin-top:12px;}
+  #quality{font-size:12.5px; background:var(--deck); border-radius:var(--rs); padding:10px 12px; margin-top:12px !important; line-height:1.6;}
+
+  /* 지표 */
+  .m{border-top:1px solid var(--line2); padding:10px 0 8px;}
   .m:first-of-type{border-top:0; padding-top:0;}
   .mtop{display:flex; align-items:baseline; gap:6px;}
-  .mname{font-size:11.5px; font-weight:700;}
-  .mval{margin-left:auto; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums;}
-  .mbase{font-size:10px; color:var(--ink3); margin-top:1px;}
-  .mbar{height:4px; background:#EDE9DD; margin-top:5px; position:relative; overflow:hidden;}
+  .mname{font-size:13px; font-weight:600; color:var(--ink2);}
+  .mval{margin-left:auto; font-family:var(--num); font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; line-height:1;}
+  .mbase{font-size:11.5px; color:var(--ink3); margin-top:3px;}
+  .mbar{height:4px; background:var(--line2); margin-top:7px; position:relative; overflow:hidden; border-radius:2px;}
   .mbar i{position:absolute; top:0; bottom:0; display:block;}
-  .ok{color:var(--ok);} .warn{color:var(--warn);} .bad{color:var(--bad);} .acc{color:var(--acc);} .muted{opacity:.45;}
+  .ok{color:var(--ok);} .warn{color:var(--warn);} .bad{color:var(--bad);} .acc{color:var(--aqua);} .muted{opacity:.5;}
   .fill-ok{background:var(--ok);} .fill-warn{background:var(--warn);} .fill-bad{background:var(--bad);}
 
-  .steps{display:flex; flex-direction:column; gap:7px; font-size:11.5px;}
-  .step{display:flex; gap:8px; align-items:center; color:var(--ink3);}
-  .step .n{width:16px; height:16px; border:1px solid var(--rule); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; flex:none;}
-  .step.on{color:var(--ink); font-weight:700;}
-  .step.on .n{border-color:var(--acc); color:var(--acc);}
+  /* 분석 진행 */
+  .steps{display:flex; flex-direction:column; gap:8px; font-size:13px;}
+  .step{display:flex; gap:9px; align-items:center; color:var(--ink3);}
+  .step .n{width:18px; height:18px; border:1.5px solid var(--line); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; flex:none;}
+  .step.on{color:var(--ink); font-weight:600;}
+  .step.on .n{border-color:var(--aqua); color:var(--aqua);}
   .step.done{color:var(--ink2);}
-  .step.done .n{background:var(--ok); border-color:var(--ok); color:#fff;}
-  .step.err{color:var(--bad); font-weight:700;}
+  .step.done .n{background:var(--aqua); border-color:var(--aqua); color:#fff;}
+  .step.err{color:var(--bad); font-weight:600;}
   .step.err .n{background:var(--bad); border-color:var(--bad); color:#fff;}
 
-  .coach{border-left:2px solid var(--acc); background:var(--accSoft); padding:9px 11px; font-size:11.5px; line-height:1.6; color:#5B3425;}
-  .coach b{display:block; font-size:10px; letter-spacing:1px; text-transform:uppercase; margin-bottom:3px; color:var(--acc);}
-  .coach ol{margin:0; padding-left:15px;}
-  .coach li{margin-bottom:3px;}
+  /* 교정 */
+  .coach{font-size:13px; line-height:1.65; color:var(--ink2);}
+  .coach > b{display:block; font-size:12.5px; margin-bottom:8px; color:var(--ink3); font-weight:600;}
+  .coach ol{margin:0; padding-left:18px;}
+  .coach li{margin-bottom:10px;}
+  .coach li .cn{font-weight:700; color:var(--ink);}
+  .coach li .cd{font-family:var(--num); font-size:17px; font-weight:600; margin-left:6px; color:var(--bad);}
+  .coach li .ca{margin-top:2px;}
 
-  .calibrow{display:flex; align-items:center; gap:8px; font-size:11.5px; margin-bottom:6px;}
+  /* 고급 */
+  details.adv{background:var(--surface); border:1px solid var(--line); border-radius:var(--r);}
+  details.adv > summary{cursor:pointer; padding:13px 16px; font-weight:600; font-size:13.5px; color:var(--ink2); list-style:none;}
+  details.adv > summary::-webkit-details-marker{display:none;}
+  details.adv > summary::after{content:"+"; float:right; color:var(--ink3); font-weight:500;}
+  details.adv[open] > summary::after{content:"−";}
+  details.adv .advb{padding:0 16px 16px;}
+  details.adv .card{border:0; padding:0; border-radius:0;}
+  details.adv .card + .card{margin-top:14px; padding-top:14px; border-top:1px solid var(--line2);}
+  .calibrow{display:flex; align-items:center; gap:10px; font-size:12.5px; margin-bottom:8px;}
   .calibrow span{color:var(--ink3); width:64px; flex:none;}
   .calibrow input[type=range]{flex:1;}
   .calibrow b{width:42px; text-align:right; font-variant-numeric:tabular-nums;}
-
-  .cta{display:flex; align-items:center; gap:7px; font:inherit; font-size:13px; font-weight:800;
-       border:1.5px solid var(--acc); background:var(--acc); color:#fff; padding:9px 16px; cursor:pointer;}
-  .cta:hover{opacity:.9;}
-  .cta svg{width:15px; height:15px;}
-  .dock{background:var(--panel); border:1.5px solid var(--acc); padding:0;}
-  .dock .dh{display:flex; align-items:center; gap:6px; padding:9px 12px; background:var(--accSoft); border-bottom:1px solid #E8CDBE;}
-  .dock .dh b{font-size:11.5px; letter-spacing:.4px; color:var(--acc); font-weight:800;}
-  .dock .dh .st{margin-left:auto; font-size:10px; letter-spacing:.8px; color:#8E5B45; font-weight:700; text-transform:uppercase;}
-  .dock .db{padding:11px 12px;}
-  .drop2{border:1.4px dashed rgba(176,81,43,.55); background:#FDF7F2; padding:16px 10px; text-align:center; cursor:pointer;}
-  .drop2.hot{background:var(--accSoft); border-color:var(--acc);}
-  .drop2 b{display:block; font-size:12px; color:var(--acc); margin-bottom:3px;}
-  .drop2 span{font-size:10.5px; color:var(--ink3); line-height:1.5;}
-  .dockrow{display:flex; gap:6px; margin-top:7px;}
-  .dockrow button{flex:1; font-size:11px; font-weight:700; padding:6px 4px; border:1px solid var(--rule); background:#fff; color:var(--ink2); cursor:pointer;}
-  .dockrow button:hover{border-color:var(--acc); color:var(--acc);}
-  .speedseg{display:flex; border:1px solid var(--rule);}
-  .speedseg button{font:inherit; font-size:10.5px; font-weight:700; padding:4px 7px; border:0; background:#fff; color:var(--ink2); cursor:pointer; border-left:1px solid var(--rule2);}
-  .speedseg button:first-child{border-left:0;}
-  .speedseg button.on{background:var(--teal); color:#fff;}
-  .chip-upload{position:absolute; top:10px; left:12px; z-index:5; display:flex; gap:6px;}
-  .chip-upload button{font:inherit; font-size:11px; font-weight:700; padding:5px 10px; border:1px solid rgba(255,255,255,.3);
-        background:rgba(12,26,32,.72); color:#DCEAEE; cursor:pointer;}
-  .chip-upload button:hover{background:rgba(176,81,43,.85); border-color:rgba(176,81,43,.9); color:#fff;}
-  .viewseg{display:flex; border:1px solid var(--rule); margin-left:4px;}
-  .viewseg button{font:inherit; font-size:11.5px; font-weight:700; border:0; background:transparent; color:var(--ink2); padding:6px 11px; cursor:pointer;}
-  .viewseg button.on{background:var(--teal); color:#fff;}
-  .vdiv{width:1px; height:18px; background:var(--rule); margin:0 5px;}
-  .reconbar{display:flex; gap:7px; margin-top:12px; background:var(--panel); border:1px solid var(--rule); padding:10px 12px; align-items:center; flex-wrap:wrap;}
-  .reconbar .lab{font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:var(--ink3); font-weight:700; margin-right:3px;}
-  .reconbar .btn{padding:6px 11px; font-size:11.5px;}
-  .striplab{font-size:10.5px; letter-spacing:1.1px; text-transform:uppercase; color:var(--ink3); font-weight:700; margin:14px 0 6px;}
-  #strip{display:block; width:100%; height:auto; background:var(--panel); border:1px solid var(--rule);}
-  .hiddenvid{position:fixed; left:-9999px; top:0; width:2px; height:2px; opacity:.01; pointer-events:none;}
-  .footer{margin-top:16px; font-size:10.5px; color:var(--ink3); line-height:1.7; border-top:1px solid var(--rule); padding-top:9px;}
+  .footer{font-size:12px; color:var(--ink3); line-height:1.7; padding:2px 2px 0;}
   .footer b{color:var(--ink2);}
-  .hide{display:none !important;}
-  .kbd{font-family:Menlo,Consolas,monospace; font-size:10px; background:#EDE9DD; padding:1px 4px; border-radius:2px;}
+  .kbd{font-family:Menlo,Consolas,monospace; font-size:11px; background:var(--line2); padding:1px 4px; border-radius:3px;}
+  .cta{white-space:nowrap;}
+  @media (max-width:640px){
+    .wrap{padding:12px 12px 40px;} .tagline{display:none;}
+    .engine{font-size:0; gap:0;} .logo{font-size:24px;}
+    .cta{padding:9px 12px; font-size:13px;}
+    .phasebar{flex-wrap:wrap;} .phasebar .ptitle span{display:none;}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none !important;} }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <div class="top">
+  <header class="top">
     <div class="logo">Dive<b>Form</b></div>
-    <div class="tagline">수영 스타트 각도 분석 · 영상 → 관절 → 각도 → 리포트</div>
-    <div class="engine" id="engine">엔진 대기</div>
+    <div class="tagline">수영 스타트 동작 분석</div>
+    <div class="engine" id="engine">엔진 준비 중</div>
+    <div class="seg"><button id="modeDemo" class="on">데모</button><button id="modeVideo">영상</button></div>
     <button class="cta" id="ctaUpload">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
-      영상 업로드
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+      영상 분석하기
     </button>
-    <div class="seg">
-      <button id="modeDemo" class="on">데모 보기</button>
-      <button id="modeVideo">영상 분석</button>
-    </div>
-  </div>
+  </header>
 
   <div class="main">
     <div>
       <div class="stagebox">
         <div class="progline"><i id="prog"></i></div>
         <canvas id="stage" width="1600" height="900"></canvas>
-        <div class="chip-upload" id="chipUpload" style="display:none">
-          <button id="chipFile">영상 교체</button>
-          <button id="chipCam">다시 촬영</button>
-        </div>
-        <div class="stagetag" id="stagetag">DEMO · 합성 스켈레톤</div>
+        <div class="chip-upload" id="chipUpload"><button id="chipFile">영상 교체</button><button id="chipCam">다시 촬영</button></div>
+        <div class="stagetag" id="stagetag">예시 데이터</div>
       </div>
       <div class="stagemeta">
-        <span><span class="dot"></span><b id="mFile">demo_synthetic</b></span>
-        <span>fps <b id="mFps">120</b></span>
-        <span>스케일 <b id="mScale">—</b></span>
-        <span>방향 <b id="mDir">—</b></span>
+        <span class="fname"><span class="dot"></span><span id="mFile">예시 분석</span></span>
         <span>추적률 <b id="mTrack">—</b></span>
         <span>국면 <b id="mPhase">—</b></span>
-        <span style="margin-left:auto">MediaPipe 33 + Hand 21</span>
+        <span>축척 <b id="mScale">—</b></span>
+        <span class="opt">방향 <b id="mDir">—</b></span>
+        <span class="opt">샘플 <b id="mFps">—</b></span>
       </div>
 
       <div class="controls">
         <div class="row">
           <button class="btn" id="play" disabled>▶ 재생</button>
-          <button class="btn gh on" id="tIdeal">이상 궤적</button>
-          <button class="btn gh on" id="tJoint">관절·각도</button>
-          <button class="btn gh" id="tGhost">이상 자세</button>
-          <button class="btn gh" id="tCalib">보정선</button>
-          <button class="btn gh" id="tBg">영상 배경</button>
-          <span class="vdiv"></span>
-          <span class="viewseg">
-            <button id="vRecon" class="on">모션 재구성</button>
-            <button id="vOverlay">영상 위</button>
-          </span>
-          <span class="vdiv"></span>
-          <button class="btn gh" id="stepBack" title="1프레임 뒤로">◀</button>
-          <button class="btn gh" id="stepFwd" title="1프레임 앞으로">▶</button>
-          <span class="speedseg" id="speedseg">
+          <button class="btn gh iconbtn" id="stepBack" title="1프레임 뒤로" aria-label="1프레임 뒤로">‹</button>
+          <button class="btn gh iconbtn" id="stepFwd" title="1프레임 앞으로" aria-label="1프레임 앞으로">›</button>
+          <span class="speedseg" id="speedseg" title="재생 속도">
             <button data-r="0.1">0.1×</button>
             <button data-r="0.25" class="on">0.25×</button>
             <button data-r="0.5">0.5×</button>
             <button data-r="1">1×</button>
           </span>
-          <button class="btn gh" id="pickBtn" title="자동으로 고른 사람이 다이버가 아니면 직접 지정해 다시 추적">다이버 지정</button>
-          <button class="btn gh" id="stillBtn" title="현재 화면을 PNG로 저장">스틸 저장</button>
+          <span class="grow"></span>
           <span class="time" id="time">0.00 s</span>
         </div>
         <div class="scrubwrap">
-          <input type="range" id="scrub" min="0" max="1000" value="0" disabled>
+          <input type="range" id="scrub" min="0" max="1000" value="0" disabled aria-label="재생 위치">
           <div class="bands" id="bands">
-            <div style="width:14%;background:#7C8B91">세트</div>
-            <div style="width:10%;background:#9A6A16">이륙</div>
-            <div style="width:30%;background:#B0512B">비행</div>
-            <div style="width:12%;background:#16323C">입수</div>
-            <div style="width:34%;background:#93B2C0">수중</div>
+            <div style="width:14%;background:#8A9BA3">세트</div>
+            <div style="width:10%;background:#2BA6B5">이륙</div>
+            <div style="width:30%;background:#0E7C8C">비행</div>
+            <div style="width:46%;background:#9BB8C4">입수·수중</div>
           </div>
         </div>
+        <div class="row" style="margin-top:12px">
+          <span class="viewseg">
+            <button id="vRecon" class="on">동작 재구성</button>
+            <button id="vOverlay">영상 위에</button>
+          </span>
+          <span class="vdiv"></span>
+          <span class="grp">표시</span>
+          <button class="btn gh on" id="tIdeal">이상 궤적</button>
+          <button class="btn gh on" id="tJoint">관절·각도</button>
+          <button class="btn gh" id="tGhost">이상 자세</button>
+          <button class="btn gh" id="tBg">영상 배경</button>
+          <button class="btn gh" id="tCalib">보정선</button>
+          <span class="grow"></span>
+          <button class="btn gh" id="pickBtn" title="자동으로 고른 사람이 다이버가 아니면 직접 지정해 다시 추적">다이버 지정</button>
+          <details class="menu" id="exportMenu">
+            <summary class="btn gh">내보내기</summary>
+            <div class="pop">
+              <button class="btn gh" id="stillBtn">현재 화면 PNG</button>
+            </div>
+          </details>
+        </div>
         <div class="legend">
-          <span><i></i>실측 무게중심 궤적</span>
-          <span><i class="dash"></i>이상 궤적 (35° · 4.5 m/s)</span>
-          <span><i class="dotl"></i>최대 이탈 지점 (cm · °)</span>
+          <span><i></i>실제 무게중심 궤적</span>
+          <span><i class="dash"></i>이상 궤적 35° · 4.5 m/s</span>
+          <span><i class="dotl"></i>가장 크게 벗어난 지점</span>
         </div>
       </div>
 
-      <div class="reconbar">
-        <span class="lab">국면 이동</span>
-        <button class="btn gh" id="jSet">① 점프 대기</button>
-        <button class="btn gh" id="jTake">② 이륙</button>
-        <button class="btn gh" id="jEntry">③ 입수</button>
+      <div class="phasebar">
+        <div class="ptitle">장면 요약<span>누르면 그 순간으로 이동합니다</span></div>
+        <span class="hint" id="segHint">—</span>
         <button class="btn" id="jSeg">점프 구간 재생</button>
-        <span class="time" id="segHint">—</span>
+        <span class="hide"><button id="jSet"></button><button id="jTake"></button><button id="jEntry"></button></span>
       </div>
-      <div class="striplab">국면 요약 — 검출된 관절로 재구성</div>
-      <canvas id="strip" width="1600" height="330"></canvas>
+      <canvas id="strip" width="1600" height="330" title="장면을 누르면 그 순간으로 이동합니다"></canvas>
     </div>
 
     <aside class="side">
-
-      <!-- upload dock: 항상 상단 고정 -->
-      <div class="dock" id="dock">
-        <div class="dh"><b>다이빙 영상</b><span class="st" id="dockState">업로드</span></div>
-        <div class="db">
-          <div class="drop2" id="drop">
-            <b>영상 파일 선택 / 드래그</b>
-            <span>현장 촬영본·보관 중인 영상 모두<br>mp4 · mov · webm</span>
-          </div>
-          <div class="dockrow">
-            <button id="dockCam">카메라 촬영</button>
-            <button id="dockDemo">데모 보기</button>
-          </div>
-          <div class="note" style="margin-top:7px">측면 90°, 블록과 수면이 함께 보이게. <b>좌우 어느 방향으로 뛰어도 자동 정렬됩니다.</b></div>
-        </div>
-      </div>
-
-      <!-- upload / calibration -->
-      <div class="card hide" id="cardSetup">
-        <h4>1 · 영상 선택</h4>
-        <label class="drop" id="drop">
-          <b>영상 드래그 앤 드롭</b>
-          <span>측면 촬영 · 30 fps 이상 권장 · mp4/mov</span>
-          <input type="file" id="file" accept="video/*">
-          <input type="file" id="fileCam" accept="video/*" capture="environment">
-        </label>
-        <div class="note">측면 90°, 카메라–선수 5–8 m, 블록과 수면이 함께 보이게. <b>측면이 아니면 각도가 틀어집니다.</b></div>
-      </div>
-
-      <div class="card hide" id="cardCalib">
-        <h4>2 · 캘리브레이션</h4>
-        <div class="calibrow"><span>수면선</span><input type="range" id="cWater" min="50" max="950" value="640"><b id="vWater">—</b></div>
-        <div class="calibrow"><span>블록 상면</span><input type="range" id="cBlock" min="50" max="900" value="300"><b id="vBlock">—</b></div>
-        <div class="note" id="calibNote">두 선을 영상 위에서 직접 드래그해도 됩니다. 블록 높이 0.70 m 기준으로 스케일을 계산합니다.</div>
-        <div class="row" style="margin-top:9px">
-          <button class="btn" id="run">분석 시작</button>
-          <button class="btn gh" id="recalib">초기화</button>
-        </div>
-      </div>
-
       <div class="card hide" id="cardRun">
-        <h4>3 · 분석</h4>
+        <h4>분석 중</h4>
         <div class="steps" id="steps"></div>
       </div>
 
-      <!-- report -->
+      <div class="card dock" id="dock">
+        <div class="dh"><b>분석 기록</b><span class="st" id="dockState"></span></div>
+        <div class="drop2" id="drop" role="button" tabindex="0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="M6 10l6-6 6 6"/><path d="M4 20h16"/></svg>
+          <div><b>영상 올리기</b><span>파일을 끌어다 놓아도 됩니다</span></div>
+          <button class="cam" id="dockCam" type="button">촬영</button>
+          <input type="file" id="file" accept="video/*">
+          <input type="file" id="fileCam" accept="video/*" capture="environment">
+        </div>
+        <div id="history"></div>
+        <div class="hfoot"><span>기록은 이 기기의 브라우저에만 저장됩니다</span><button id="dockDemo" type="button">예시 보기</button></div>
+      </div>
+      <div class="hide" id="cardSetup"></div>
+
       <div class="card hide" id="cardScore">
         <h4>종합 점수</h4>
         <div class="scoreline">
           <div class="score" id="score">—</div>
           <div class="scoreof">/ 100</div>
-          <div class="grade ok" id="grade" style="display:none"></div>
+          <div class="grade" id="grade" style="display:none"></div>
         </div>
         <div class="verdict" id="verdict">—</div>
       </div>
 
       <div class="card hide" id="cardMetrics">
-        <h4>지표 (현재 프레임)</h4>
+        <h4>지표 <small>현재 장면</small></h4>
         <div id="metrics"></div>
       </div>
 
       <div class="card hide" id="cardCoach">
         <h4>교정 포인트</h4>
         <div class="coach" id="coach"></div>
-        <div class="row" style="margin-top:9px">
-          <button class="btn gh" id="exportJson">JSON 내보내기</button>
-        </div>
       </div>
 
+      <details class="adv" id="advanced">
+        <summary>고급 설정</summary>
+        <div class="advb">
+          <div class="card hide" id="cardCalib">
+            <h4>보정선</h4>
+            <div class="calibrow"><span>수면선</span><input type="range" id="cWater" min="50" max="950" value="640"><b id="vWater">—</b></div>
+            <div class="calibrow"><span>블록 상면</span><input type="range" id="cBlock" min="50" max="900" value="300"><b id="vBlock">—</b></div>
+            <div class="note" id="calibNote">두 선을 영상 위에서 직접 끌어도 됩니다.</div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn" id="run">다시 계산</button>
+              <button class="btn gh" id="recalib">초기화</button>
+            </div>
+          </div>
+          <div class="card">
+            <h4>분석 정보</h4>
+            <div class="note" id="infoNote" style="margin-top:0">영상을 분석하면 걸린 시간과 추적한 프레임 수가 여기에 표시됩니다.</div>
+            <div class="row" style="margin-top:10px"><button class="btn gh" id="exportJson">결과 JSON 내보내기</button></div>
+          </div>
+        </div>
+      </details>
+
       <div class="footer">
-        <b>한계</b> — 스마트폰 단안 영상 기반 추정치입니다. 각도 오차 ±4°, 30 fps에서는 이륙각 ±6°. 수중 구간은 굴절로 각도 계산에서 제외합니다. 랩 계측(포스플레이트·모션캡처)의 대체물이 아닙니다.
+        스마트폰 영상 한 대로 추정한 값입니다. 각도 오차는 ±4° 안팎이고, 30 fps 영상에서는 이륙각 오차가 더 커집니다. 물속 구간은 굴절 때문에 계산에서 뺍니다.
       </div>
     </aside>
   </div>
 </div>
+
 <script type="module">
 /* =========================================================
    DiveForm — swimming start analyzer
@@ -377,6 +430,7 @@ const S = {
   rate: 0.25
 };
 window.__DF = S;   // 검증 도구(tools/e2e.py)가 추적 결과를 읽는 용도
+window.__DF_hist = () => ({ Hist, renderHistory, openSession });   // 검증 도구용: 기록 저장소
 // 검증 도구용: 저장된 추적 결과로 분석만 다시 돌린다 (추적 없이 수 초)
 window.__DF_api = {
   analyzeOnly(raw, meta){
@@ -1024,7 +1078,7 @@ function buildDemo(){
   }
   return {
     frames,
-    src: { kind:"demo", el:null, w:V.W, h:V.H, dur, label:"demo_synthetic.mp4", samples:n, cvs:null, ctx:null }
+    src: { kind:"demo", el:null, w:V.W, h:V.H, dur, label:"예시 분석", samples:n, cvs:null, ctx:null }
   };
 }
 
@@ -1525,7 +1579,7 @@ function toC(p){
 
 function drawPoolDemo(){
   const {S:SC, OX, OY} = DEMO;
-  ctx.fillStyle = "#0E1B21"; ctx.fillRect(0,0,V.W,V.H);
+  ctx.fillStyle = "#0B2733"; ctx.fillRect(0,0,V.W,V.H);
   const sky = ctx.createLinearGradient(0,0,0,OY);
   sky.addColorStop(0,"#10222A"); sky.addColorStop(1,"#173039");
   ctx.fillStyle = sky; ctx.fillRect(0,0,V.W,OY);
@@ -1561,7 +1615,7 @@ function bonesOf(p){
 function drawSkeleton(p, opt){
   if (!p) return;
   const main = opt.main;
-  const col = main ? "#EAF3F5" : "#C9765A";
+  const col = main ? "#EAF3F5" : "#F4C542";
   ctx.save();
   ctx.strokeStyle = col; ctx.lineWidth = main?13:8; ctx.lineCap="round"; ctx.lineJoin="round";
   if (!main) ctx.setLineDash([12,9]);
@@ -1574,15 +1628,15 @@ function drawSkeleton(p, opt){
   // head
   const hp = toC(p.head);
   ctx.beginPath(); ctx.arc(hp[0],hp[1], main?30:26, 0, Math.PI*2);
-  ctx.fillStyle = main ? "#0E1B21" : "transparent";
+  ctx.fillStyle = main ? "#0B2733" : "transparent";
   ctx.strokeStyle = col; ctx.lineWidth = main?12:7; ctx.fill(); ctx.stroke();
   // joints
   ["shoulder","hip","k1","k2","elbow","a1","a2"].forEach(k=>{
     if (!p[k]) return;
     const q = toC(p[k]);
     ctx.beginPath(); ctx.arc(q[0],q[1], main?9:7, 0, Math.PI*2);
-    ctx.fillStyle = main ? "#B0512B" : "#FBFAF6"; ctx.fill();
-    ctx.strokeStyle = main ? "#0E1B21" : col; ctx.lineWidth = main?3:2; ctx.stroke();
+    ctx.fillStyle = main ? "#19B5C6" : "#F3F6F7"; ctx.fill();
+    ctx.strokeStyle = main ? "#0B2733" : col; ctx.lineWidth = main?3:2; ctx.stroke();
   });
 }
 
@@ -1627,7 +1681,7 @@ function deltaText(){
 }
 function deltaColor(){
   const d = takeoffDelta();
-  if (d === null) return "#F0B27A";
+  if (d === null) return "#F4C542";
   const a = Math.abs(d);
   return a <= 2.5 ? "#8FD0A8" : a <= 5 ? "#F0C06A" : "#E88A72";
 }
@@ -1753,14 +1807,14 @@ function drawBlock(r){
   const ang = Math.atan2(platY-plateY, run);
   if (Math.abs(ang) > 0.04){
     ctx.save(); ctx.translate(x0+run*0.5, (plateY+platY)/2); ctx.rotate(ang);
-    ctx.fillStyle="rgba(232,176,142,.9)"; ctx.font="700 15px Arial";
+    ctx.fillStyle="rgba(191,234,240,.9)"; ctx.font="700 15px Arial";
     ctx.fillText("발판 " + Math.round(Math.abs(deg(ang))) + "°", 6, -7);
     ctx.restore();
   }
 }
 
 function drawRecon(idx){
-  ctx.fillStyle = "#0D1A20"; ctx.fillRect(0,0,V.W,V.H);
+  ctx.fillStyle = "#0A2430"; ctx.fillRect(0,0,V.W,V.H);
   const r = S.recon;
   if (!r || !S.src){
     ctx.fillStyle="rgba(200,220,230,.45)"; ctx.font="600 26px Arial";
@@ -1812,14 +1866,14 @@ function drawRecon(idx){
 
   // 이상 궤적 + 실제 궤적
   if (S.showIdeal && S.res.ideal && S.res.ideal.length>2){
-    ctx.save(); ctx.setLineDash([14,10]); ctx.strokeStyle="rgba(201,118,90,.55)"; ctx.lineWidth=3;
+    ctx.save(); ctx.setLineDash([14,10]); ctx.strokeStyle="rgba(244,197,66,.55)"; ctx.lineWidth=3;
     ctx.beginPath();
     S.res.ideal.forEach((q,i)=>{ const c=rmapPx(q); i?ctx.lineTo(c[0],c[1]):ctx.moveTo(c[0],c[1]); });
     ctx.stroke(); ctx.restore();
   }
   // 실제 COM 궤적 (국면별 색)
   const com = S.res.com;
-  const segCol = i => i<p.takeoff ? "#9A6A16" : i<p.entry ? "#B0512B" : "#93B2C0";
+  const segCol = i => i<p.takeoff ? "#5FC6D3" : i<p.entry ? "#19B5C6" : "#9BB8C4";
   ctx.lineWidth = 4; ctx.lineCap="round";
   for (let i=p.start+1;i<=Math.min(p.entry, com.length-1);i++){
     if (!com[i]||!com[i-1]) continue;
@@ -1832,7 +1886,7 @@ function drawRecon(idx){
     const p0 = rmapPx(S.res.ideal[0]), p1 = rmapPx(S.res.ideal[Math.floor(S.res.ideal.length*0.35)]);
     const ang = Math.atan2(p1[1]-p0[1], p1[0]-p0[0]);
     ctx.save(); ctx.translate(p1[0], p1[1]); ctx.rotate(ang);
-    ctx.fillStyle = "rgba(201,118,90,.95)"; ctx.font = "700 20px Arial";
+    ctx.fillStyle = "rgba(244,197,66,.95)"; ctx.font = "700 20px Arial";
     ctx.fillText("이상 " + IDEAL_TO + "°", 12, -12); ctx.restore();
   }
   if (com && com.length>3){
@@ -1851,8 +1905,8 @@ function drawRecon(idx){
   if (S.res.maxDevFrame>=0 && com[S.res.maxDevFrame] && isNum(S.res.metrics.align)){
     const q = rmapPx(com[S.res.maxDevFrame]);
     ctx.beginPath(); ctx.arc(q[0],q[1],15,0,Math.PI*2);
-    ctx.strokeStyle="#F0B27A"; ctx.lineWidth=3; ctx.stroke();
-    ctx.beginPath(); ctx.arc(q[0],q[1],3.5,0,Math.PI*2); ctx.fillStyle="#F0B27A"; ctx.fill();
+    ctx.strokeStyle="#F4C542"; ctx.lineWidth=3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(q[0],q[1],3.5,0,Math.PI*2); ctx.fillStyle="#F4C542"; ctx.fill();
     hud(S.res.metrics.align.toFixed(1) + " cm / " + (deltaText().trim() || "—"),
         q[0]+24, q[1]-14, deltaColor(), 19);
   }
@@ -1860,8 +1914,8 @@ function drawRecon(idx){
   // 온ion skin: 대기 / 이륙 / 입수
   const skin = (i, col) => { const f=S.frames[i]; if (f && f.p) rbones(f.p, col, 8, [10,7], .5); };
   skin(p.start,  "#8FB3C0");
-  skin(p.takeoff,"#E0A46A");
-  skin(p.entry,  "#D98B6A");
+  skin(p.takeoff,"#5FC6D3");
+  skin(p.entry,  "#3E8FA8");
 
   // 현재 프레임
   const f = S.frames[idx];
@@ -1871,8 +1925,8 @@ function drawRecon(idx){
       if (!f.p[k]) return;
       const q = rmap(f.p[k]);
       ctx.beginPath(); ctx.arc(q[0],q[1],6.5,0,Math.PI*2);
-      ctx.fillStyle="#B0512B"; ctx.fill();
-      ctx.strokeStyle="#0D1A20"; ctx.lineWidth=2.5; ctx.stroke();
+      ctx.fillStyle="#19B5C6"; ctx.fill();
+      ctx.strokeStyle="#0A2430"; ctx.lineWidth=2.5; ctx.stroke();
     });
     if (S.showJoint){
       const rk = S.res.rearKey, ra = S.res.rearAnk;
@@ -1881,14 +1935,13 @@ function drawRecon(idx){
         const a1 = Math.atan2(rmap(f.p.hip)[1]-v[1], rmap(f.p.hip)[0]-v[0]);
         const a2 = Math.atan2(rmap(f.p[ra])[1]-v[1],  rmap(f.p[ra])[0]-v[0]);
         ctx.beginPath(); ctx.arc(v[0],v[1],42, Math.min(a1,a2), Math.max(a1,a2));
-        ctx.strokeStyle="#E8B08E"; ctx.lineWidth=3; ctx.stroke();
+        ctx.strokeStyle="#BFEAF0"; ctx.lineWidth=3; ctx.stroke();
         hud("뒤 무릎 "+angAt(f.p.hip,f.p[rk],f.p[ra],S.src.w,S.src.h).toFixed(0)+"°",
-            v[0]+32, v[1]+58, "#E8B08E", 20);
+            v[0]+32, v[1]+58, "#BFEAF0", 20);
       }
       if (S.res.metrics.takeoffAngle!=null && idx>=p.takeoff && idx<=p.entry){
         const sh = rmap(f.p.shoulder);
-        hud("몸통축 "+Math.abs(deg(Math.atan2((f.p.hand[1]-f.p.shoulder[1])*S.src.h,
-             (f.p.hand[0]-f.p.shoulder[0])*S.src.w))).toFixed(0)+"°", sh[0]+26, sh[1]-54, "#E8B08E", 20);
+        hud("손–어깨 축 "+armAxisDeg(f).toFixed(0)+"°", sh[0]+26, sh[1]-54, "#BFEAF0", 20);
       }
     }
   }
@@ -1916,7 +1969,7 @@ function drawCompareBadge(){
   ctx.fillText("이륙각 비교", x+16, y+24);
 
   // 이상
-  ctx.fillStyle = "rgba(201,118,90,.95)"; ctx.font = "600 15px Arial";
+  ctx.fillStyle = "rgba(244,197,66,.95)"; ctx.font = "600 15px Arial";
   ctx.fillText("이상", x+16, y+52);
   ctx.fillStyle = "rgba(236,244,247,.95)"; ctx.font = "800 26px Arial";
   ctx.fillText("35.0°", x+86, y+54);
@@ -1959,7 +2012,7 @@ function drawMini(g, p, x, y, w, h, col){
     const A=P(p[a]),B=P(p[b]); g.beginPath(); g.moveTo(A[0],A[1]); g.lineTo(B[0],B[1]); g.stroke(); });
   const hd=P(p.head);
   g.beginPath(); g.arc(hd[0],hd[1],7,0,Math.PI*2);
-  g.fillStyle="#FFFDF7"; g.strokeStyle=col; g.lineWidth=4; g.fill(); g.stroke();
+  g.fillStyle="#FFFFFF"; g.strokeStyle=col; g.lineWidth=4; g.fill(); g.stroke();
   ["shoulder","hip","k1","k2","elbow"].forEach(kk=>{ if(!p[kk]) return;
     const q=P(p[kk]); g.beginPath(); g.arc(q[0],q[1],3.4,0,Math.PI*2); g.fillStyle=col; g.fill(); });
 }
@@ -1969,13 +2022,13 @@ function drawStrip(){
   const g = c.getContext("2d");
   const Wd = c.width, Hd = c.height;
   g.clearRect(0,0,Wd,Hd);
-  g.fillStyle = "#FFFDF7"; g.fillRect(0,0,Wd,Hd);
+  g.fillStyle = "#FFFFFF"; g.fillRect(0,0,Wd,Hd);
   if (!S.res){ return; }
   const p = S.res.phases, m = S.res.metrics;
   const items = [
-    { i:p.start,   t:"① 점프 대기", s:"뒤 무릎 " + fmt(m.kneeRear,0) + "°",  c:"#7C8B91" },
-    { i:p.takeoff, t:"② 이륙",      s:"이륙각 " + fmt(m.takeoffAngle,1) + "°" + deltaText() + " · " + fmt(m.hVel,2) + " m/s", c:"#9A6A16" },
-    { i:p.entry,   t:"③ 입수",      s:"입수각 " + fmt(m.entryAngle,1) + "°", c:"#B0512B" }
+    { i:p.start,   t:"① 점프 대기", s:"뒤 무릎 " + fmt(m.kneeRear,0) + "°",  c:"#6B7F89" },
+    { i:p.takeoff, t:"② 이륙",      s:"이륙각 " + fmt(m.takeoffAngle,1) + "°" + deltaText() + " · " + fmt(m.hVel,2) + " m/s", c:"#0E8FA0" },
+    { i:p.entry,   t:"③ 입수",      s:"입수각 " + fmt(m.entryAngle,1) + "°", c:"#12465C" }
   ];
   const bw = Wd/3;
   items.forEach((it,n)=>{
@@ -1984,7 +2037,7 @@ function drawStrip(){
     g.fillStyle = "#8A8578"; g.font = "600 16px Arial"; g.fillText(it.s, x0+26, 60);
     const f = S.frames[it.i];
     if (f && f.p) drawMini(g, f.p, x0+22, 74, bw-44, Hd-92, it.c);
-    if (n < 2){ g.strokeStyle="#EAE6DA"; g.lineWidth=2;
+    if (n < 2){ g.strokeStyle="#E3EAED"; g.lineWidth=2;
       g.beginPath(); g.moveTo(x0+bw,18); g.lineTo(x0+bw,Hd-18); g.stroke(); }
   });
 }
@@ -2000,7 +2053,7 @@ function render(){
   ctx.clearRect(0,0,V.W,V.H);
   if (S.src && S.src.kind === "video" && S.src.el && S.src.el.readyState >= 2){
     const f = viewport();
-    ctx.fillStyle = "#0E1B21"; ctx.fillRect(0,0,V.W,V.H);
+    ctx.fillStyle = "#0B2733"; ctx.fillRect(0,0,V.W,V.H);
     try {
       if (S.src.flip){
         ctx.save(); ctx.translate(f.x + f.w, f.y); ctx.scale(-1, 1);
@@ -2012,7 +2065,7 @@ function render(){
   } else if (S.src){
     drawPoolDemo();
   } else {
-    ctx.fillStyle = "#0E1B21"; ctx.fillRect(0,0,V.W,V.H);
+    ctx.fillStyle = "#0B2733"; ctx.fillRect(0,0,V.W,V.H);
     ctx.fillStyle = "rgba(200,220,230,.5)"; ctx.font = "600 30px Arial";
     ctx.textAlign = "center";
     ctx.fillText("오른쪽 위에서 다이빙 영상을 올려주세요", V.W/2, V.H/2 - 8);
@@ -2027,7 +2080,7 @@ function render(){
 
   // 궤적
   if (S.res && S.showIdeal){
-    drawPathPx(S.res.ideal, "#C9765A", [14,10], 3);
+    drawPathPx(S.res.ideal, "#F4C542", [14,10], 3);
     drawPathPx(S.res.actual, "#7FB3C4", null, 4);
     // 최대 이탈 지점
     if (S.res.maxDevFrame>=0 && S.frames[S.res.maxDevFrame]){
@@ -2035,7 +2088,7 @@ function render(){
       if (c){
         const q = toC(comOf(c, S.src).map((v,i)=> v/(i?S.src.h:S.src.w)));
         ctx.beginPath(); ctx.arc(q[0],q[1],16,0,Math.PI*2);
-        ctx.strokeStyle="#F0B27A"; ctx.lineWidth=3; ctx.stroke();
+        ctx.strokeStyle="#F4C542"; ctx.lineWidth=3; ctx.stroke();
         hud((S.res.metrics.align==null?"—":S.res.metrics.align.toFixed(1)) + " cm / " + (deltaText().trim() || "—"),
         q[0]+26, q[1]-16, deltaColor(), 20);
       }
@@ -2056,14 +2109,13 @@ function render(){
         const a1 = Math.atan2(toC(fr.p.hip)[1]-v[1], toC(fr.p.hip)[0]-v[0]);
         const a2 = Math.atan2(toC(fr.p[ra])[1]-v[1], toC(fr.p[ra])[0]-v[0]);
         ctx.beginPath(); ctx.arc(v[0],v[1],46, Math.min(a1,a2), Math.max(a1,a2));
-        ctx.strokeStyle="#E8B08E"; ctx.lineWidth=3; ctx.stroke();
+        ctx.strokeStyle="#BFEAF0"; ctx.lineWidth=3; ctx.stroke();
         const ang = angAt(fr.p.hip, fr.p[rk], fr.p[ra], S.src.w, S.src.h);
-        hud("뒤 무릎 "+ang.toFixed(0)+"°", v[0]+34, v[1]+62, "#E8B08E", 21);
+        hud("뒤 무릎 "+ang.toFixed(0)+"°", v[0]+34, v[1]+62, "#BFEAF0", 21);
       }
       if (S.res){
-        const ang = Math.abs(deg(Math.atan2((fr.p.hand[1]-fr.p.shoulder[1])*S.src.h,
-                                            (fr.p.hand[0]-fr.p.shoulder[0])*S.src.w)));
-        if (S.t > (S.src.dur*0.35)) hud("몸통축 "+ang.toFixed(0)+"°", toC(fr.p.shoulder)[0]+30, toC(fr.p.shoulder)[1]-70, "#E8B08E", 21);
+        const ang = armAxisDeg(fr);
+        if (ang != null && S.res.phases && nearestFrame(S.t) >= S.res.phases.takeoff) hud("손–어깨 축 "+ang.toFixed(0)+"°", toC(fr.p.shoulder)[0]+30, toC(fr.p.shoulder)[1]-70, "#BFEAF0", 21);
       }
     }
   }
@@ -2075,10 +2127,10 @@ function render(){
     ctx.save();
     ctx.setLineDash([16,10]); ctx.lineWidth=2;
     ctx.strokeStyle="#7FD3E8"; ctx.beginPath(); ctx.moveTo(f.x,wy); ctx.lineTo(f.x+f.w,wy); ctx.stroke();
-    ctx.strokeStyle="#F0B27A"; ctx.beginPath(); ctx.moveTo(f.x,by); ctx.lineTo(f.x+f.w,by); ctx.stroke();
+    ctx.strokeStyle="#F4C542"; ctx.beginPath(); ctx.moveTo(f.x,by); ctx.lineTo(f.x+f.w,by); ctx.stroke();
     ctx.restore();
     hud("수면", f.x+f.w-100, wy-10, "#7FD3E8", 20);
-    hud("블록 상면", f.x+f.w-190, by-10, "#F0B27A", 20);
+    hud("블록 상면", f.x+f.w-190, by-10, "#F4C542", 20);
   }
 
   // 국면 라벨
@@ -2152,6 +2204,18 @@ function updateMetricsPanel(idx){
   ].join("");
 }
 
+/* 받침이 있으면 '이', 없으면 '가' */
+function iga(w){
+  const c = String(w).trim().slice(-1).charCodeAt(0);
+  if (c >= 0xAC00 && c <= 0xD7A3) return ((c - 0xAC00) % 28) ? "이" : "가";
+  return "이";
+}
+/* 손–어깨 축의 수평 기준 각 (입수각과 같은 정의) */
+function armAxisDeg(f){
+  if (!f || !f.p) return null;
+  if (f.w && !f.interp) return horizAngle3(midW(f.w,15,16), midW(f.w,11,12));
+  return horizAngle2(f.p.hand, f.p.shoulder, S.src.w, S.src.h);
+}
 function showReport(){
   const r = S.res;
   if (!r) return;
@@ -2163,22 +2227,22 @@ function showReport(){
   const g = $("grade");
   g.style.display = "block";
   g.textContent = r.score>=85?"우수":r.score>=70?"양호":r.score>=55?"보통":"개선 필요";
-  g.className = "grade " + (r.score>=85?"ok":r.score>=70?"warn":"bad");
+  g.className = "grade " + (r.score>=70?"ok":r.score>=55?"warn":"bad");
 
   const bad = r.rows.filter(x=>x.out).sort((a,b)=>Math.abs(b.z)-Math.abs(a.z));
   if (!bad.length){
     $("verdict").textContent = "측정된 모든 지표가 허용 범위 안에 있습니다. 강도를 올려 반복 측정해 보세요.";
   } else {
-    $("verdict").textContent = keyName(bad[0].key) + "이(가) 기준에서 " +
+    $("verdict").textContent = keyName(bad[0].key) + iga(keyName(bad[0].key)) + " 기준에서 " +
       (bad[0].d>0?"+":"") + bad[0].d.toFixed(BASE[bad[0].key].d) + BASE[bad[0].key].unit + " 벗어났습니다. " +
       verdictText(bad[0].key, bad[0].d);
   }
 
   // 교정 포인트
-  const items = bad.slice(0,3).map(x=>`<li>${keyName(x.key)} <b>${(x.d>0?"+":"")+x.d.toFixed(BASE[x.key].d)+BASE[x.key].unit}</b> — ${advice(x.key, x.d)}</li>`);
+  const items = bad.slice(0,3).map(x=>`<li><span class="cn">${keyName(x.key)}</span><span class="cd">${(x.d>0?"+":"")+x.d.toFixed(BASE[x.key].d)+BASE[x.key].unit}</span><div class="ca">${advice(x.key, x.d)}</div></li>`);
   $("coach").innerHTML = items.length
-    ? `<b>다음 세션 목표</b><ol>${items.join("")}</ol>`
-    : `<b>다음 세션 목표</b>허용 범위 유지. 좌·우 다리 위치를 바꾼 조건과 비교해 보세요.`;
+    ? `<b>기준에서 많이 벗어난 순서</b><ol>${items.join("")}</ol>`
+    : `<b>모든 지표가 허용 범위 안입니다</b>좌·우 다리 위치를 바꾼 조건과 비교해 보세요.`;
 
   $("mScale").textContent = Math.round(S.cal.pxPerM) + " px/m" + (S.cal.scaleSrc === "body" ? " (몸 기준)" : "");
   // 촬영 품질 안내: 결과를 얼마나 믿을 수 있는지
@@ -2205,10 +2269,10 @@ function showReport(){
   const n = S.frames.length, p = r.phases;
   const pct = i => (i/n*100).toFixed(1)+"%";
   $("bands").innerHTML = `
-    <div style="width:${pct(p.start)};background:#7C8B91">세트</div>
-    <div style="width:${pct(p.takeoff-p.start)};background:#9A6A16">이륙</div>
-    <div style="width:${pct(p.entry-p.takeoff)};background:#B0512B">비행</div>
-    <div style="width:${pct(n-p.entry)};background:#93B2C0">입수·수중</div>`;
+    <div style="width:${pct(p.start)};background:#8A9BA3">세트</div>
+    <div style="width:${pct(p.takeoff-p.start)};background:#2BA6B5">이륙</div>
+    <div style="width:${pct(p.entry-p.takeoff)};background:#0E7C8C">비행</div>
+    <div style="width:${pct(n-p.entry)};background:#9BB8C4">입수·수중</div>`;
 }
 
 function keyName(k){
@@ -2271,7 +2335,7 @@ function exportCSV(){
   if (!ref || !ref.parentNode) return;
   const b = document.createElement("button");
   b.id = "csvBtn"; b.className = ref.className || ""; b.textContent = "모션캡처 CSV";
-  b.disabled = true; b.style.marginLeft = "8px";
+  b.disabled = true; b.textContent = "모션캡처 CSV";
   b.addEventListener("click", exportCSV);
   ref.parentNode.insertBefore(b, ref.nextSibling);
 })();
@@ -2281,7 +2345,7 @@ function updateUploadUI(){
   const chip = $("chipUpload"); if (chip) chip.style.display = isVideo ? "flex" : "none";
   const tag = $("stagetag"); if (tag) tag.style.display = isVideo ? "none" : "block";
   const st = $("dockState");
-  if (st) st.textContent = S.busy ? "분석 중" : (isVideo ? "분석 완료" : "업로드");
+  if (st) st.textContent = S.busy ? "분석 중…" : "";
   const ds = $("dockDemo"), dc = $("dockCam");
   if (dc) dc.disabled = S.busy;
   if (ds) ds.disabled = S.busy;
@@ -2298,7 +2362,7 @@ function setMode(m){
   S.mode = m;
   $("modeDemo").classList.toggle("on", m==="demo");
   $("modeVideo").classList.toggle("on", m==="video");
-  $("stagetag").textContent = m==="demo" ? "DEMO · 합성" : "VIDEO · 업로드";
+  $("stagetag").textContent = m==="demo" ? "예시 데이터" : "";
   $("cardSetup").classList.toggle("hide", m!=="video");
   $("cardCalib").classList.toggle("hide", true);
   if (m === "demo"){ runDemo(); }
@@ -2315,13 +2379,14 @@ function setMode(m){
 
 async function runDemo(){
   S.busy = true;
+  S.sessionId = null; if (typeof renderHistory === "function") renderHistory();
   const d = buildDemo();
   S.frames = d.frames;
   S.src = d.src;
   normalizeDirection(S.frames);
   S.cal = { waterN: DEMO.OY/V.H, blockN: (DEMO.OY-0.70*DEMO.S)/V.H, pxPerM: DEMO.S, blockM:0.70 };
   finishAnalysis();
-  $("mFile").textContent = "demo_synthetic.mp4";
+  $("mFile").textContent = "예시 분석";
   $("mFps").textContent = "120";
   S.busy = false;
   updateUploadUI();
@@ -2350,7 +2415,7 @@ function failEarly(err){
   console.error(err);
   const el = $("st_decode"); if (el) el.className = "step err";
   $("steps").insertAdjacentHTML("beforeend",
-    `<div class="note" style="color:#9E3B2E"><b>실패</b> — ${err.message}</div>`);
+    `<div class="note" style="color:#C2412D"><b>실패</b> — ${err.message}</div>`);
   S.busy = false;
   $("cardSetup").classList.remove("hide");
   updateUploadUI();
@@ -2413,14 +2478,16 @@ async function afterExtract(got, video, label, t0){
     S.busy = false;
     updateUploadUI();
     S.analysisSec = (performance.now() - t0) / 1000;
-    const tn = $("tookNote") || (() => { const d = document.createElement("div"); d.id = "tookNote"; d.className = "note"; $("steps").after(d); return d; })();
-    tn.textContent = "분석 시간 " + S.analysisSec.toFixed(1) + "초 · 추적 프레임 " + got.track.tracked + "개";
+    showInfo();
     console.log("[DiveForm] analysis", S.analysisSec.toFixed(1), "s");
+    $("cardRun").classList.add("hide");
+    await persistSession();
 }
 
 async function analyzeVideo(file){
   if (!poseLK){ setEngine("엔진 없음 — 데모만 가능", "err"); return; }
   S.busy = true;
+  S.sessionId = null; S.srcFile = file; S.histError = null;
   updateUploadUI();
   $("cardSetup").classList.add("hide");
   $("cardRun").classList.remove("hide");
@@ -2469,7 +2536,7 @@ async function analyzeVideo(file){
     const first = $("steps").querySelector(".step.on");
     if (first) first.className = "step err";
     $("steps").insertAdjacentHTML("beforeend",
-      `<div class="note" style="color:#9E3B2E"><b>실패</b> — ${err.message}</div>`);
+      `<div class="note" style="color:#C2412D"><b>실패</b> — ${err.message}</div>`);
     S.busy = false;
     $("cardSetup").classList.remove("hide");
     updateUploadUI();
@@ -2499,14 +2566,14 @@ function pickRect(){
 }
 function renderPick(){
   const P = S.pick, R = pickRect();
-  ctx.fillStyle = "#0E1B21"; ctx.fillRect(0,0,V.W,V.H);
+  ctx.fillStyle = "#0B2733"; ctx.fillRect(0,0,V.W,V.H);
   ctx.drawImage(P.img, R.x, R.y, R.w, R.h);
   ctx.fillStyle = "rgba(14,27,33,.35)"; ctx.fillRect(R.x, R.y, R.w, R.h);
   P.cands.forEach((cd, i) => {
     const b = cd.box, x = R.x + b[0]*R.k, y = R.y + b[1]*R.k, w = (b[2]-b[0])*R.k, h = (b[3]-b[1])*R.k;
-    ctx.strokeStyle = "#F2A541"; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = "#F2A541"; ctx.fillRect(x, y-30, 34, 30);
-    ctx.fillStyle = "#0E1B21"; ctx.font = "700 20px Arial"; ctx.textAlign = "center";
+    ctx.strokeStyle = "#F4C542"; ctx.lineWidth = 3; ctx.strokeRect(x, y, w, h);
+    ctx.fillStyle = "#F4C542"; ctx.fillRect(x, y-30, 34, 30);
+    ctx.fillStyle = "#0B2733"; ctx.font = "700 20px Arial"; ctx.textAlign = "center";
     ctx.fillText(String(i+1), x+17, y-8);
   });
   // 안내는 아래쪽 띠에 (왼쪽 위 '영상 교체' 버튼과 겹치지 않게)
@@ -2547,10 +2614,219 @@ async function retrackFromSeed(seed){
     await afterExtract(got, video, label, t0);
   } catch(err){
     console.error(err);
-    $("steps").insertAdjacentHTML("beforeend", `<div class="note" style="color:#9E3B2E"><b>재추적 실패</b> — ${err.message}</div>`);
+    $("steps").insertAdjacentHTML("beforeend", `<div class="note" style="color:#C2412D"><b>재추적 실패</b> — ${err.message}</div>`);
     S.busy = false; updateUploadUI();
   }
 }
+
+/* ---------- 분석 기록 ----------
+   분석이 끝나면 결과와 원본 영상을 이 브라우저(IndexedDB)에 저장한다. 서버로는 보내지 않는다.
+   고정하지 않은 기록은 최근 5개만 남기고, 고정한 기록은 새 분석에 밀려나지 않는다. */
+const HIST_MAX = 5;
+let _db = null;
+function dbOpen(){
+  if (_db) return Promise.resolve(_db);
+  return new Promise((res, rej) => {
+    let rq;
+    try { rq = indexedDB.open("diveform", 1); } catch(e){ rej(e); return; }
+    rq.onupgradeneeded = () => {
+      const db = rq.result;
+      if (!db.objectStoreNames.contains("meta")) db.createObjectStore("meta", { keyPath:"id" });
+      if (!db.objectStoreNames.contains("data")) db.createObjectStore("data", { keyPath:"id" });
+    };
+    rq.onsuccess = () => { _db = rq.result; res(_db); };
+    rq.onerror = () => rej(rq.error);
+  });
+}
+async function dbDo(stores, mode, fn){
+  const db = await dbOpen();
+  return new Promise((res, rej) => {
+    const t = db.transaction(stores, mode);
+    let out;
+    Promise.resolve(fn(t)).then(v => { out = v; });
+    t.oncomplete = () => res(out);
+    t.onerror = () => rej(t.error);
+    t.onabort = () => rej(t.error || new Error("저장 공간이 부족합니다"));
+  });
+}
+const reqP = rq => new Promise((res, rej) => { rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); });
+const Hist = {
+  all(){ return dbDo(["meta"], "readonly", t => reqP(t.objectStore("meta").getAll())); },
+  get(id){ return dbDo(["meta","data"], "readonly", async t => ({
+    meta: await reqP(t.objectStore("meta").get(id)), data: await reqP(t.objectStore("data").get(id)) })); },
+  put(meta, data){ return dbDo(["meta","data"], "readwrite", t => {
+    t.objectStore("meta").put(meta); if (data) t.objectStore("data").put(data); }); },
+  update(id, patch){ return dbDo(["meta"], "readwrite", async t => {
+    const st = t.objectStore("meta"), m = await reqP(st.get(id));
+    if (m){ Object.assign(m, patch); st.put(m); } }); },
+  del(id){ return dbDo(["meta","data"], "readwrite", t => { t.objectStore("meta").delete(id); t.objectStore("data").delete(id); }); },
+  async prune(){
+    const all = await Hist.all();
+    const old = all.filter(m => !m.pinned).sort((a,b) => b.createdAt - a.createdAt).slice(HIST_MAX);
+    for (const m of old) await Hist.del(m.id);
+    return old.length;
+  }
+};
+
+/* 목록 썸네일: 준비 자세 장면에서 다이버 주변을 잘라낸 작은 JPEG */
+async function makeThumb(){
+  try {
+    const v = S.src.el, i = S.res.phases.start, f = S.frames[i];
+    await seekTo(v, f.t);
+    const W = 156, H = 120, c = document.createElement("canvas"); c.width = W; c.height = H;
+    const x = c.getContext("2d");
+    let sx = 0, sy = 0, sw = v.videoWidth, sh = v.videoHeight;
+    if (f.full){
+      const xs = f.full.map(p => p[0]*v.videoWidth), ys = f.full.map(p => p[1]*v.videoHeight);
+      const cx = (Math.min(...xs)+Math.max(...xs))/2, cy = (Math.min(...ys)+Math.max(...ys))/2;
+      const r = Math.max(Math.max(...xs)-Math.min(...xs), (Math.max(...ys)-Math.min(...ys))*W/H) * 0.9 + 20;
+      sw = Math.min(v.videoWidth, r*2); sh = sw*H/W;
+      sx = clamp(cx - sw/2, 0, v.videoWidth - sw); sy = clamp(cy - sh/2, 0, Math.max(0, v.videoHeight - sh));
+    }
+    x.drawImage(v, sx, sy, sw, sh, 0, 0, W, H);
+    return c.toDataURL("image/jpeg", 0.78);
+  } catch(e){ return null; }
+}
+
+/* 현재 분석을 기록으로 저장. 다이버 재지정 후 재추적이면 같은 기록을 덮어쓴다 */
+async function persistSession(){
+  if (!S.src || S.src.kind !== "video" || !S.res) return;
+  try {
+    const isNew = !S.sessionId;
+    const id = S.sessionId || ("s" + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+    const prev = isNew ? null : (await Hist.get(id)).meta;
+    const tk = S.track || {};
+    const seg = tk.seedIdx >= 0 ? S.frames.slice(tk.seedIdx, tk.lastIdx+1) : S.frames;
+    const meta = {
+      id, createdAt: prev ? prev.createdAt : Date.now(), updatedAt: Date.now(),
+      name: prev ? prev.name : (S.src.label || "영상").replace(/\.[^.]+$/, ""),
+      pinned: prev ? prev.pinned : false,
+      score: S.res.score, thumb: await makeThumb(),
+      track: Math.round(seg.filter(f => f.p && !f.interp).length / Math.max(1, seg.length) * 100)
+    };
+    const data = {
+      id, video: S.srcFile || null, codec: SRC_CODEC,
+      src: { w:S.src.w, h:S.src.h, dur:S.src.dur, flip:S.src.flip, label:S.src.label, samples:S.src.samples, track:S.src.track },
+      cal: S.cal, frames: S.frames, framesRaw: S.framesRaw, track: S.track, analysisSec: S.analysisSec
+    };
+    await Hist.put(meta, data);
+    S.sessionId = id;
+    if (isNew) await Hist.prune();
+  } catch(e){
+    console.warn("기록 저장 실패", e);
+    S.histError = "이 브라우저에서는 기록을 저장할 수 없습니다 (" + (e && e.message || e) + ")";
+  }
+  await renderHistory();
+}
+
+/* 저장된 기록 열기: 추적을 다시 하지 않고 저장된 관절 좌표로 화면을 그린다 */
+async function openSession(id){
+  if (S.busy || id === S.sessionId) return;
+  const { meta, data } = await Hist.get(id);
+  if (!meta || !data){ await renderHistory(); return; }
+  if (!data.video){ S.histError = "이 기록은 영상이 저장되지 않아 열 수 없습니다."; await renderHistory(); return; }
+  S.busy = true; updateUploadUI();
+  try {
+    if (S.srcUrl){ try { URL.revokeObjectURL(S.srcUrl); } catch(e){} }
+    if (S.src && S.src.el && S.src.el.parentNode) S.src.el.remove();
+    SRC_CODEC = data.codec || null;
+    const url = URL.createObjectURL(data.video); S.srcUrl = url;
+    const video = document.createElement("video");
+    video.src = url; video.muted = true; video.playsInline = true; video.preload = "auto"; video.className = "hiddenvid";
+    document.body.appendChild(video);
+    await new Promise((res, rej) => { video.onloadedmetadata = res; video.onerror = () => rej(new Error("저장된 영상을 열 수 없습니다")); setTimeout(() => rej(new Error("영상 로딩 시간 초과")), 20000); });
+    await seekTo(video, Math.min(0.05, video.duration/2));
+    video.addEventListener("seeked", () => { if (S.src && S.src.el === video) render(); });
+    const cw = Math.min(1000, video.videoWidth), ch = Math.round(cw * video.videoHeight / video.videoWidth);
+    const cvs = document.createElement("canvas"); cvs.width = cw; cvs.height = ch;
+    S.mode = "video";
+    S.src = Object.assign({ kind:"video", el:video, cvs, ctx:cvs.getContext("2d", { willReadFrequently:true }) }, data.src);
+    S.frames = data.frames; S.framesRaw = data.framesRaw; S.track = data.track; S.cal = data.cal;
+    S.srcFile = data.video; S.sessionId = id; S.analysisSec = data.analysisSec;
+    $("cWater").value = Math.round(S.cal.waterN*1000); $("cBlock").value = Math.round(S.cal.blockN*1000);
+    $("mFile").textContent = meta.name;
+    $("mFps").textContent = S.frames.length;
+    $("stagetag").textContent = "";
+    $("cardRun").classList.add("hide");
+    finishAnalysis();
+    showInfo();
+  } catch(e){
+    console.error(e); S.histError = e.message;
+  }
+  S.busy = false; updateUploadUI();
+  await renderHistory();
+}
+
+function showInfo(){
+  const n = $("infoNote"); if (!n) return;
+  const tk = S.track;
+  n.textContent = isNum(S.analysisSec)
+    ? "분석 시간 " + S.analysisSec.toFixed(1) + "초 · 추적 프레임 " + (tk ? tk.tracked : "—") + "개"
+    : "저장된 기록입니다.";
+}
+
+const fmtDate = ms => { const d = new Date(ms); const p = n => String(n).padStart(2,"0");
+  return `${d.getMonth()+1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+const escHtml = x => String(x).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+
+async function renderHistory(){
+  const el = $("history"); if (!el) return;
+  let all = [];
+  try { all = await Hist.all(); } catch(e){ S.histError = "이 브라우저에서는 기록을 저장할 수 없습니다."; }
+  const pinned = all.filter(m => m.pinned).sort((a,b) => b.createdAt - a.createdAt);
+  const recent = all.filter(m => !m.pinned).sort((a,b) => b.createdAt - a.createdAt).slice(0, HIST_MAX);
+  const item = m => {
+    const cls = m.score >= 70 ? "ok" : m.score >= 55 ? "warn" : "bad";
+    return `<div class="hitem${m.id === S.sessionId ? " cur" : ""}${m.pinned ? " pinned" : ""}" data-id="${m.id}" tabindex="0" role="button" aria-label="${escHtml(m.name)} 열기">
+      ${m.thumb ? `<img src="${m.thumb}" alt="">` : `<div class="ph0"></div>`}
+      <div style="min-width:0"><div class="nm">${escHtml(m.name)}</div><div class="dt">${fmtDate(m.createdAt)} · 추적 ${m.track}%</div></div>
+      <div class="sc ${cls}">${m.score}</div>
+      <div class="acts">
+        <button class="pin${m.pinned ? " on" : ""}" data-act="pin" title="${m.pinned ? "고정 해제" : "고정 — 새 분석에 밀려나지 않습니다"}" aria-label="${m.pinned ? "고정 해제" : "고정"}">${m.pinned ? "★" : "☆"}</button>
+        <button data-act="ren" title="이름 바꾸기" aria-label="이름 바꾸기">✎</button>
+        <button class="del" data-act="del" title="삭제" aria-label="삭제">×</button>
+      </div></div>`;
+  };
+  let h = "";
+  if (S.histError) h += `<div class="hempty" style="color:var(--bad)">${escHtml(S.histError)}</div>`;
+  if (pinned.length) h += `<div class="hsec">고정됨<span>${pinned.length}개</span></div><div class="hlist">${pinned.map(item).join("")}</div>`;
+  h += `<div class="hsec">최근 분석<span>${recent.length}/${HIST_MAX}</span></div>`;
+  h += recent.length ? `<div class="hlist">${recent.map(item).join("")}</div>`
+       : `<div class="hempty">아직 분석한 영상이 없습니다. 영상을 올리면 분석이 끝난 뒤 여기에 자동으로 저장됩니다.</div>`;
+  el.innerHTML = h;
+}
+
+$("history").addEventListener("click", async e => {
+  const it = e.target.closest(".hitem"); if (!it) return;
+  const id = it.dataset.id, act = e.target.closest("[data-act]");
+  if (!act){ if (!e.target.closest("input")) openSession(id); return; }
+  e.stopPropagation();
+  const a = act.dataset.act;
+  if (a === "pin"){
+    const m = (await Hist.all()).find(x => x.id === id);
+    await Hist.update(id, { pinned: !(m && m.pinned) });
+    await renderHistory();
+  } else if (a === "del"){
+    if (!act.classList.contains("arm")){
+      act.classList.add("arm"); act.textContent = "삭제";
+      setTimeout(() => { if (act.isConnected){ act.classList.remove("arm"); act.textContent = "×"; } }, 3000);
+      return;
+    }
+    await Hist.del(id);
+    if (S.sessionId === id) S.sessionId = null;
+    await renderHistory();
+  } else if (a === "ren"){
+    const nm = it.querySelector(".nm");
+    const inp = document.createElement("input"); inp.className = "rn"; inp.value = nm.textContent; inp.maxLength = 40;
+    nm.replaceWith(inp); inp.focus(); inp.select();
+    const done = async ok => { const v = inp.value.trim(); if (ok && v){ await Hist.update(id, { name: v }); if (S.sessionId === id) $("mFile").textContent = v; } await renderHistory(); };
+    inp.addEventListener("keydown", ev => { if (ev.key === "Enter") done(true); if (ev.key === "Escape") done(false); });
+    inp.addEventListener("blur", () => done(true));
+  }
+});
+$("history").addEventListener("keydown", e => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("hitem")){ e.preventDefault(); openSession(e.target.dataset.id); }
+});
 
 /* ---------- 캘리브레이션 ---------- */
 function syncCalibLabels(fromUser){
@@ -2674,6 +2950,11 @@ const jumpTo = key => {
   setT(S.frames[i].t);
 };
 $("jSet").addEventListener("click", ()=>jumpTo("start"));
+$("strip").addEventListener("click", e => {
+  if (!S.res) return;
+  const r = e.currentTarget.getBoundingClientRect(), k = (e.clientX - r.left) / r.width;
+  jumpTo(k < 1/3 ? "start" : k < 2/3 ? "takeoff" : "entry");
+});
 $("jTake").addEventListener("click", ()=>jumpTo("takeoff"));
 $("jEntry").addEventListener("click", ()=>jumpTo("entry"));
 $("jSeg").addEventListener("click", ()=>{
@@ -2729,7 +3010,8 @@ $("dockCam").addEventListener("click", e=>{ e.stopPropagation(); $("fileCam").cl
 $("chipCam").addEventListener("click", e=>{ e.stopPropagation(); $("fileCam").click(); });
 $("dockDemo").addEventListener("click", e=>{ e.stopPropagation(); setMode("demo"); });
 $("fileCam").addEventListener("change", e=>{ const f = e.target.files[0]; if (f) analyzeVideo(f); });
-$("drop").addEventListener("click", ()=>$("file").click());
+$("drop").addEventListener("click", e=>{ if (e.target.tagName === "INPUT") return; $("file").click(); });
+$("drop").addEventListener("keydown", e=>{ if (e.key === "Enter" || e.key === " "){ e.preventDefault(); $("file").click(); } });
 $("file").addEventListener("change", e=>{ const f = e.target.files[0]; if (f) analyzeVideo(f); });
 ["dragover","dragenter"].forEach(ev=>$("drop").addEventListener(ev, e=>{ e.preventDefault(); $("drop").classList.add("hot"); }));
 ["dragleave","drop"].forEach(ev=>$("drop").addEventListener(ev, e=>{ e.preventDefault(); $("drop").classList.remove("hot"); }));
