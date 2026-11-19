@@ -1,12 +1,13 @@
 # 배포
 
 ## GitHub
-- 저장소: `phillip3han/diveform` (생성 필요, private 권장)
+- 저장소: `phillip3han/diveform` (**public**, 2026-11-19 전환)
 - 브랜치: `main`
 
 ## GitHub Pages
 `.github/workflows/pages.yml`이 main 푸시마다 저장소 루트를 그대로 배포.
-최초 1회: 저장소 Settings → Pages → Source = **GitHub Actions**.
+설정 완료 (Source = GitHub Actions, 2026-11-19). 배포 확인: 내장 엔진 로드까지 정상.
+- **운영 주소: https://phillip3han.github.io/diveform/**
 - 관절 추적: `https://<계정>.github.io/diveform/`
 - 형태 분석: `https://<계정>.github.io/diveform/shape.html`
 private 저장소의 Pages는 유료 플랜에서만 가능 (무료면 public으로 하거나 다른 호스팅).
