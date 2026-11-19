@@ -28,6 +28,9 @@ python3 tools/e2e.py /path/v1.h264.mp4 --shot /tmp/e2e --timeout 3000000
 - 테스트 영상은 저장소에 넣지 않는다(사용자 Mac `~/Downloads/_talkv_*.MP4`, docs/testing 참고)
 
 ## 코드 규칙
+- 다이버 추적은 `scanPeople` → `pickSeed` → `makeTracker().step` (docs/design/pose-pipeline.md). "프레임마다 최선의 사람"으로 되돌리지 말 것 — 옆 사람·다음 선수로 갈아탄다
+- 추적 로직을 바꾸면 4개 영상 모두 e2e를 돌리고, 결과 JSON을 원본에 겹쳐 눈으로 확인 (docs/testing/results.md에 기록)
+- JS 문법 검사: `tools/check_js.sh`
 - 포즈 엔진은 `runningMode: "IMAGE"` + `poseLK.detect()`. 크롭마다 다른 이미지를 넣으므로 VIDEO 모드(타임스탬프·추적 상태) 쓰지 말 것
 - 각도 정의가 셋 다 다르다: 세트 = 관절 내각, 이륙 = 무게중심 속도벡터 vs 수평, 입수 = 신체축 vs 수면
 - 사용자 대면 문구는 한국어
